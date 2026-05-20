@@ -27,4 +27,17 @@ describe('production game HUD panels', () => {
         expect(source).toContain('if (raw && defaultMinimized)');
     });
 
+    it('gives the shared HUD shell professional game-grade chrome instead of plain debug boxes', () => {
+        const source = fs.readFileSync(path.join(componentDir, 'FloatingPanel.tsx'), 'utf8');
+        [
+            'HUD_ACCENT_COLORS',
+            'radial-gradient(circle at 18% 0%',
+            'linear-gradient(135deg, rgba(6,8,18,0.96)',
+            'inset 0 1px 0 rgba(255,255,255,0.18)',
+            'data-testid={`hud-panel-${id}`',
+            'LIVE',
+            'boxShadow: `0 0 16px ${accent}88`'
+        ].forEach((marker) => expect(source).toContain(marker));
+    });
+
 });
