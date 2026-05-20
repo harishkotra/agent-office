@@ -154,6 +154,7 @@ export class OfficeScene extends Phaser.Scene {
             const gridSize = this.gridSize;
             const g = this.add.graphics();
             this.drawPolishedOfficeMap(g, gridSize);
+            this.addAtmosphericOverlays(gridSize);
 
             this.cameras.main.setBackgroundColor('#211d28');
             this.cameras.main.setBounds(0, 0, gridSize, gridSize);
@@ -608,6 +609,81 @@ export class OfficeScene extends Phaser.Scene {
             [48, 336], [296, 344], [632, 328], [952, 336], [336, 648],
             [624, 648], [944, 72], [48, 648], [512, 92], [176, 656]
         ].forEach(([x, y]) => this.drawPlant(g, x, y));
+    }
+
+    private addAtmosphericOverlays(size: number) {
+        const glowLayer = this.add.container(0, 0);
+        glowLayer.setDepth(3.35);
+        glowLayer.setBlendMode(Phaser.BlendModes.ADD);
+
+        [
+            { x: 192, y: 156, color: 0xd36bff, radius: 96 },
+            { x: 492, y: 168, color: 0x58d5ff, radius: 104 },
+            { x: 800, y: 180, color: 0x66e28d, radius: 88 },
+            { x: 196, y: 506, color: 0xffcf70, radius: 92 },
+            { x: 488, y: 522, color: 0x43e0c5, radius: 96 },
+            { x: 804, y: 510, color: 0xb8a6ff, radius: 112 },
+            { x: 600, y: 324, color: 0x74e0a3, radius: 76 },
+            { x: 552, y: 742, color: 0xff83d1, radius: 112 }
+        ].forEach((light, index) => this.addLightBloom(glowLayer, light.x, light.y, light.radius, light.color, index));
+
+        for (let i = 0; i < 24; i++) {
+            const x = 72 + ((i * 173) % (size - 144));
+            const y = 84 + ((i * 97) % (size - 168));
+            const color = i % 4 === 0 ? 0x58d5ff : i % 4 === 1 ? 0xd36bff : i % 4 === 2 ? 0xffcf70 : 0x66e28d;
+            this.addAmbientMote(glowLayer, x, y, color, i);
+        }
+
+        this.addScanSweep(size);
+    }
+
+    private addLightBloom(layer: Phaser.GameObjects.Container, x: number, y: number, radius: number, color: number, index: number) {
+        const bloom = this.add.circle(x, y, radius, color, 0.08);
+        bloom.setStrokeStyle(1, color, 0.08);
+        layer.add(bloom);
+        this.tweens.add({
+            targets: bloom,
+            alpha: { from: 0.16, to: 0.62 },
+            scaleX: { from: 0.86, to: 1.08 },
+            scaleY: { from: 0.82, to: 1.03 },
+            duration: 3600 + index * 410,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
+
+    private addAmbientMote(layer: Phaser.GameObjects.Container, x: number, y: number, color: number, index: number) {
+        const mote = this.add.rectangle(x, y, index % 3 === 0 ? 3 : 2, index % 5 === 0 ? 3 : 2, color, 0.38);
+        mote.setAngle((index * 23) % 180);
+        layer.add(mote);
+        this.tweens.add({
+            targets: mote,
+            y: y - 18 - (index % 5) * 5,
+            x: x + ((index % 2 === 0 ? 1 : -1) * (8 + index % 7)),
+            alpha: { from: 0.12, to: 0.58 },
+            angle: mote.angle + 36,
+            duration: 5200 + index * 137,
+            delay: index * 90,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
+
+    private addScanSweep(size: number) {
+        const sweep = this.add.rectangle(size / 2, 64, size - 112, 3, 0x58d5ff, 0.16);
+        sweep.setDepth(3.45);
+        sweep.setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+            targets: sweep,
+            y: size - 72,
+            alpha: { from: 0.08, to: 0.32 },
+            duration: 9000,
+            delay: 700,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
     }
 
     private drawOfficeFloor(g: Phaser.GameObjects.Graphics, size: number) {

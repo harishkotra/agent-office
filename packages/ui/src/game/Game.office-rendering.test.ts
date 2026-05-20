@@ -63,6 +63,18 @@ describe('OfficeScene polished office background renderer', () => {
         ].forEach((marker) => expect(source).toContain(marker));
     });
 
+    it('adds atmospheric lighting and animated scene overlays so the office does not feel static', () => {
+        [
+            'addAtmosphericOverlays',
+            'addLightBloom',
+            'addAmbientMote',
+            'addScanSweep',
+            'Phaser.BlendModes.ADD',
+            'repeat: -1',
+            'alpha: { from: 0.16, to: 0.62 }'
+        ].forEach((marker) => expect(source).toContain(marker));
+    });
+
 
     it('registers early server bootstrap messages to avoid Colyseus warning noise', () => {
         expect(source).toContain("onMessage('tasks-sync'");
