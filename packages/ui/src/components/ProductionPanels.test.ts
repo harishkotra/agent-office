@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const componentDir = __dirname;
+const uiSrcDir = path.join(componentDir, '..');
 
 describe('production game HUD panels', () => {
     it('uses draggable/minimizable FloatingPanel shells for every heavy overlay', () => {
@@ -37,6 +38,19 @@ describe('production game HUD panels', () => {
             'data-testid={`hud-panel-${id}`',
             'LIVE',
             'boxShadow: `0 0 16px ${accent}88`'
+        ].forEach((marker) => expect(source).toContain(marker));
+    });
+
+    it('adds a professional cinematic viewport treatment around the Phaser scene', () => {
+        const source = fs.readFileSync(path.join(uiSrcDir, 'App.tsx'), 'utf8');
+        [
+            'CinematicViewportChrome',
+            'agent-office-vignette',
+            'agent-office-scanlines',
+            'radial-gradient(circle at 50% 48%',
+            'linear-gradient(180deg, transparent 0 70%',
+            'PRODUCTION FLOOR',
+            'WASD / ARROWS'
         ].forEach((marker) => expect(source).toContain(marker));
     });
 
