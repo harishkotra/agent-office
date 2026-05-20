@@ -2,6 +2,7 @@ import express from 'express';
 import { Server } from 'colyseus';
 import { createServer } from 'http';
 import { OfficeRoom } from './rooms/OfficeRoom';
+import { readSupervisorSnapshot } from './supervisor/SupervisorState';
 
 // Setup Express
 const app = express();
@@ -10,6 +11,10 @@ app.use(express.json());
 // Basic REST API for Office Management
 app.get('/api/offices', (req, res) => {
     res.json({ status: 'ok', offices: [] });
+});
+
+app.get('/api/supervisor-state', (req, res) => {
+    res.json({ ok: true, ...readSupervisorSnapshot() });
 });
 
 app.post('/api/vote-chaos', (req, res) => {

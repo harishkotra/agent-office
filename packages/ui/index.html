@@ -3,11 +3,86 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AgentOffice</title>
+    <title>AgentOffice — Codex Supervisor Production Floor</title>
     <style>
-      body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; color: #fff; font-family: 'Inter', sans-serif; }
-      #phaser-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; }
-      #ui-root { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2; pointer-events: none; }
+      :root {
+        --agent-office-ink: #f8fbff;
+        --agent-office-bg: #080a12;
+        --agent-office-cyan: #58d5ff;
+        --agent-office-violet: #d36bff;
+        --agent-office-green: #66e28d;
+      }
+
+      body, html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 42%, rgba(88,213,255,0.14), transparent 34%),
+          radial-gradient(circle at 18% 12%, rgba(211,107,255,0.14), transparent 28%),
+          linear-gradient(135deg, #070812 0%, #151225 50%, #070812 100%);
+        color: var(--agent-office-ink);
+        font-family: "Avenir Next", "Trebuchet MS", system-ui, sans-serif;
+        cursor: crosshair;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+      }
+
+      ::selection {
+        background: rgba(88,213,255,0.34);
+        color: #ffffff;
+      }
+
+      * {
+        box-sizing: border-box;
+        scrollbar-color: rgba(88,213,255,0.62) rgba(7,10,20,0.45);
+      }
+
+      *::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      *::-webkit-scrollbar-track {
+        background: rgba(7,10,20,0.45);
+      }
+
+      *::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: linear-gradient(180deg, var(--agent-office-cyan), var(--agent-office-violet));
+        border: 2px solid rgba(7,10,20,0.78);
+      }
+
+      button, input, select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      #phaser-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1;
+        image-rendering: pixelated;
+      }
+
+      #ui-root {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 2;
+        pointer-events: none;
+      }
+
       /* Allow clicks to pass through empty UI space to Phaser */
       #ui-root > * { pointer-events: auto; }
     </style>
