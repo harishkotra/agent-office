@@ -47,6 +47,22 @@ describe('OfficeScene polished office background renderer', () => {
         ].forEach((marker) => expect(source).toContain(marker));
     });
 
+    it('renders custom layout editor props with the same polished pixel-art vocabulary as the main scene', () => {
+        [
+            'drawCustomLayoutItem',
+            'drawMiniPlant',
+            'drawMiniDesk',
+            'drawMiniBookshelf',
+            'drawMiniCoffeeMachine',
+            'drawMiniTable',
+            'drawMiniChair',
+            'drawMiniWhiteboard',
+            'drawMiniArcadeCabinet',
+            'drawMiniSofa',
+            'drawMiniPingPongTable'
+        ].forEach((marker) => expect(source).toContain(marker));
+    });
+
 
     it('registers early server bootstrap messages to avoid Colyseus warning noise', () => {
         expect(source).toContain("onMessage('tasks-sync'");

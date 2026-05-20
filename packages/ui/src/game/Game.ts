@@ -1050,56 +1050,7 @@ export class OfficeScene extends Phaser.Scene {
             const y = Math.round(item.y) * 16;
             const group = this.add.container(x, y);
             const g = this.add.graphics();
-            switch (item.type) {
-                case 'plant':
-                    g.fillStyle(0x8b4513, 1);
-                    g.fillRect(-5, 0, 10, 8);
-                    g.fillStyle(0x27ae60, 1);
-                    g.fillCircle(0, -5, 6);
-                    g.fillStyle(0x2ecc71, 1);
-                    g.fillCircle(-3, -7, 4);
-                    g.fillCircle(4, -6, 4);
-                    break;
-                case 'desk':
-                    g.fillStyle(0x6d4c2e, 1);
-                    g.fillRect(-12, -8, 24, 16);
-                    g.fillStyle(0x2d3436, 1);
-                    g.fillRect(-8, -6, 10, 6);
-                    break;
-                case 'bookshelf':
-                    g.fillStyle(0x6d4c2e, 1);
-                    g.fillRect(-8, -12, 16, 24);
-                    g.fillStyle(0xfdcb6e, 1);
-                    g.fillRect(-6, -8, 3, 6);
-                    g.fillStyle(0x0984e3, 1);
-                    g.fillRect(-2, -8, 3, 6);
-                    g.fillStyle(0xe17055, 1);
-                    g.fillRect(2, -8, 3, 6);
-                    break;
-                case 'coffee_machine':
-                    g.fillStyle(0x2d3436, 1);
-                    g.fillRect(-6, -8, 12, 16);
-                    g.fillStyle(0xd63031, 1);
-                    g.fillCircle(0, 4, 2);
-                    break;
-                case 'table':
-                    g.fillStyle(0x6d4c2e, 1);
-                    g.fillRect(-10, -6, 20, 12);
-                    break;
-                case 'chair':
-                    g.fillStyle(0x4a4a6a, 1);
-                    g.fillCircle(0, 0, 6);
-                    break;
-                case 'whiteboard':
-                    g.fillStyle(0xdfe6e9, 1);
-                    g.fillRect(-10, -6, 20, 12);
-                    g.lineStyle(1, 0x636e72, 1);
-                    g.strokeRect(-10, -6, 20, 12);
-                    break;
-                default:
-                    g.fillStyle(0xb2bec3, 1);
-                    g.fillRect(-6, -6, 12, 12);
-            }
+            this.drawCustomLayoutItem(g, item.type);
             group.add(g);
             if (item.label) {
                 const label = this.add.text(0, 10, item.label.slice(0, 8), { fontSize: '8px', color: '#dfe6f3' }).setOrigin(0.5, 0);
@@ -1113,6 +1064,195 @@ export class OfficeScene extends Phaser.Scene {
             });
             this.customLayoutLayer.add(group);
         }
+    }
+
+    private drawCustomLayoutItem(g: Phaser.GameObjects.Graphics, type: string) {
+        switch (type) {
+            case 'plant':
+                this.drawMiniPlant(g);
+                break;
+            case 'desk':
+                this.drawMiniDesk(g);
+                break;
+            case 'bookshelf':
+                this.drawMiniBookshelf(g);
+                break;
+            case 'coffee_machine':
+                this.drawMiniCoffeeMachine(g);
+                break;
+            case 'table':
+                this.drawMiniTable(g);
+                break;
+            case 'chair':
+                this.drawMiniChair(g);
+                break;
+            case 'whiteboard':
+                this.drawMiniWhiteboard(g);
+                break;
+            case 'arcade':
+            case 'arcade_cabinet':
+                this.drawMiniArcadeCabinet(g);
+                break;
+            case 'sofa':
+                this.drawMiniSofa(g);
+                break;
+            case 'ping_pong':
+            case 'ping_pong_table':
+                this.drawMiniPingPongTable(g);
+                break;
+            default:
+                this.drawMiniUnknownProp(g);
+        }
+    }
+
+    private drawMiniDropShadow(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number) {
+        g.fillStyle(0x09070d, 0.34);
+        g.fillRect(x, y, w, h);
+    }
+
+    private drawMiniPlant(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -8, 6, 18, 5);
+        g.fillStyle(0x744126, 1);
+        g.fillRect(-6, 0, 12, 9);
+        g.fillStyle(0x9b623c, 1);
+        g.fillRect(-4, 2, 8, 6);
+        g.fillStyle(0x2f7d4e, 1);
+        g.fillRect(-1, -9, 3, 10);
+        g.fillStyle(0x42b06a, 1);
+        g.fillRect(-9, -9, 8, 5);
+        g.fillRect(1, -12, 8, 5);
+        g.fillStyle(0x6ee083, 0.9);
+        g.fillRect(-5, -15, 6, 5);
+        g.fillRect(4, -6, 7, 4);
+    }
+
+    private drawMiniDesk(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -13, 7, 30, 8);
+        g.fillStyle(0x332317, 1);
+        g.fillRect(-14, -9, 32, 18);
+        g.fillStyle(0x805f3e, 1);
+        g.fillRect(-12, -7, 28, 13);
+        g.fillStyle(0x9f7651, 0.35);
+        g.fillRect(-10, -5, 24, 3);
+        g.fillStyle(0x1c1e25, 1);
+        g.fillRect(-8, -5, 11, 8);
+        g.fillStyle(0x7df9ff, 0.9);
+        g.fillRect(-6, -3, 7, 4);
+        g.fillStyle(0xffcf70, 1);
+        g.fillRect(9, 0, 3, 4);
+    }
+
+    private drawMiniBookshelf(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -8, 9, 21, 7);
+        g.fillStyle(0x4a3223, 1);
+        g.fillRect(-8, -14, 18, 28);
+        for (let row = 0; row < 2; row++) {
+            g.fillStyle(0x65452f, 1);
+            g.fillRect(-6, -10 + row * 12, 14, 8);
+            [0xffcf70, 0x58d5ff, 0xe16d5b, 0x66e28d].forEach((color, idx) => {
+                g.fillStyle(color, 0.95);
+                g.fillRect(-4 + idx * 3, -9 + row * 12, 2, 6);
+            });
+        }
+    }
+
+    private drawMiniCoffeeMachine(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -8, 8, 18, 6);
+        g.fillStyle(0x151820, 1);
+        g.fillRect(-7, -12, 14, 24);
+        g.fillStyle(0xa6b0b8, 1);
+        g.fillRect(-4, -9, 8, 7);
+        g.fillStyle(0xff5b5b, 1);
+        g.fillRect(3, 4, 3, 3);
+        g.fillStyle(0xdedbd2, 1);
+        g.fillRect(-2, 8, 5, 4);
+    }
+
+    private drawMiniTable(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -14, 7, 32, 8);
+        g.fillStyle(0x6b4c32, 1);
+        g.fillRect(-14, -8, 32, 16);
+        g.fillStyle(0x805f3e, 1);
+        g.fillRect(-12, -6, 28, 12);
+        g.fillStyle(0xf4e8c8, 1);
+        g.fillRect(2, -4, 7, 9);
+    }
+
+    private drawMiniChair(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -8, 5, 16, 6);
+        g.fillStyle(0x24202a, 1);
+        g.fillRect(-8, -5, 16, 11);
+        g.fillStyle(0x7c6a87, 1);
+        g.fillRect(-6, -3, 12, 8);
+        g.fillStyle(0x171520, 1);
+        g.fillRect(-6, 5, 3, 5);
+        g.fillRect(3, 5, 3, 5);
+    }
+
+    private drawMiniWhiteboard(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -12, 8, 26, 7);
+        g.fillStyle(0xdedbd2, 1);
+        g.fillRect(-12, -10, 24, 16);
+        g.lineStyle(1, 0x6c6670, 1);
+        g.strokeRect(-12, -10, 24, 16);
+        g.lineStyle(1, 0x58d5ff, 0.75);
+        g.beginPath();
+        g.moveTo(-8, -2).lineTo(-3, -6).lineTo(3, -1).lineTo(9, -5);
+        g.moveTo(-8, 3).lineTo(-2, 1).lineTo(6, 3);
+        g.strokePath();
+    }
+
+    private drawMiniArcadeCabinet(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -8, 9, 20, 6);
+        g.fillStyle(0x28172f, 1);
+        g.fillRect(-7, -15, 16, 29);
+        g.fillStyle(0xff4fd8, 1);
+        g.fillRect(-5, -13, 12, 4);
+        g.fillStyle(0x101922, 1);
+        g.fillRect(-4, -6, 10, 11);
+        g.fillStyle(0x7df9ff, 1);
+        g.fillRect(-2, -4, 6, 7);
+        g.fillStyle(0xffcf70, 1);
+        g.fillRect(-3, 8, 2, 2);
+        g.fillStyle(0xff5b5b, 1);
+        g.fillRect(3, 8, 2, 2);
+    }
+
+    private drawMiniSofa(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -15, 8, 34, 8);
+        g.fillStyle(0x36223f, 1);
+        g.fillRect(-16, -7, 34, 16);
+        g.fillStyle(0x734a82, 1);
+        g.fillRect(-14, -4, 30, 9);
+        g.fillStyle(0x8e5aa0, 1);
+        g.fillRect(-12, 0, 12, 8);
+        g.fillRect(4, 0, 10, 8);
+        g.fillStyle(0xffcf70, 0.86);
+        g.fillRect(-11, -3, 5, 4);
+    }
+
+    private drawMiniPingPongTable(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -15, 8, 36, 7);
+        g.fillStyle(0x173d52, 1);
+        g.fillRect(-16, -8, 36, 16);
+        g.fillStyle(0x1e6d87, 1);
+        g.fillRect(-14, -6, 32, 12);
+        g.lineStyle(1, 0xeef7ff, 0.85);
+        g.strokeRect(-14, -6, 32, 12);
+        g.beginPath();
+        g.moveTo(2, -5).lineTo(2, 5);
+        g.moveTo(-13, 0).lineTo(17, 0);
+        g.strokePath();
+        g.fillStyle(0xffffff, 1);
+        g.fillRect(-5, -2, 2, 2);
+    }
+
+    private drawMiniUnknownProp(g: Phaser.GameObjects.Graphics) {
+        this.drawMiniDropShadow(g, -8, 7, 18, 6);
+        g.fillStyle(0x3d3b45, 1);
+        g.fillRect(-7, -7, 14, 14);
+        g.lineStyle(1, 0xb2bec3, 0.8);
+        g.strokeRect(-7, -7, 14, 14);
     }
 }
 
