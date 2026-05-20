@@ -54,4 +54,18 @@ describe('production game HUD panels', () => {
         ].forEach((marker) => expect(source).toContain(marker));
     });
 
+    it('sets a game-grade global shell in index.html rather than a generic web default', () => {
+        const source = fs.readFileSync(path.join(uiSrcDir, '../index.html'), 'utf8');
+        [
+            '--agent-office-ink',
+            'Avenir Next',
+            'radial-gradient(circle at 50% 42%',
+            'cursor: crosshair',
+            'image-rendering: pixelated',
+            '::-webkit-scrollbar-thumb',
+            'AgentOffice — Codex Supervisor Production Floor'
+        ].forEach((marker) => expect(source).toContain(marker));
+        expect(source).not.toContain("font-family: 'Inter'");
+    });
+
 });
