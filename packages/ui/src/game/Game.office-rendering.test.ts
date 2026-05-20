@@ -75,6 +75,20 @@ describe('OfficeScene polished office background renderer', () => {
         ].forEach((marker) => expect(source).toContain(marker));
     });
 
+    it('adds animated department signage and status boards for professional scene readability', () => {
+        [
+            'addDepartmentSignageLayer',
+            'addDepartmentStatusBoard',
+            'addNeonDepartmentSign',
+            'GAME ASSETS',
+            'SCENE QA',
+            'BUILD OPS',
+            'SIGNAGE_TEXT_STYLE',
+            "stroke: '#0b0f18'",
+            'alpha: { from: 0.58, to: 1 }'
+        ].forEach((marker) => expect(source).toContain(marker));
+    });
+
 
     it('registers early server bootstrap messages to avoid Colyseus warning noise', () => {
         expect(source).toContain("onMessage('tasks-sync'");

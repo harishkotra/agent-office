@@ -45,6 +45,14 @@ type DepartmentZone = {
     cluster: 'creative' | 'editorial' | 'terminal' | 'review' | 'bench' | 'library';
 };
 
+const SIGNAGE_TEXT_STYLE = {
+    fontSize: '10px',
+    color: '#f8fbff',
+    fontStyle: 'bold',
+    stroke: '#0b0f18',
+    strokeThickness: 3
+};
+
 function resolveWsEndpoint(): string {
     if (typeof window !== 'undefined') {
         const queryWs = new URLSearchParams(window.location.search).get('ws');
@@ -155,6 +163,7 @@ export class OfficeScene extends Phaser.Scene {
             const g = this.add.graphics();
             this.drawPolishedOfficeMap(g, gridSize);
             this.addAtmosphericOverlays(gridSize);
+            this.addDepartmentSignageLayer();
 
             this.cameras.main.setBackgroundColor('#211d28');
             this.cameras.main.setBounds(0, 0, gridSize, gridSize);
@@ -635,6 +644,78 @@ export class OfficeScene extends Phaser.Scene {
         }
 
         this.addScanSweep(size);
+    }
+
+    private addDepartmentSignageLayer() {
+        const signs = [
+            { title: 'GAME ASSETS', subtitle: 'Sprites • Props • Polish', x: 188, y: 116, accent: 0xd36bff },
+            { title: 'CONTENT STUDIO', subtitle: 'Narrative • Prompts', x: 488, y: 116, accent: 0x58d5ff },
+            { title: 'BUILD OPS', subtitle: 'CI • Deploy • Runtime', x: 804, y: 132, accent: 0x66e28d },
+            { title: 'SCENE QA', subtitle: 'Visual gates • Bugs', x: 492, y: 452, accent: 0x43e0c5 },
+            { title: 'RESEARCH', subtitle: 'Playbooks • Memory', x: 804, y: 428, accent: 0xb8a6ff },
+            { title: 'REST LOOP', subtitle: 'Breaks • Arcade • Flow', x: 554, y: 704, accent: 0xff83d1 }
+        ];
+        signs.forEach((sign, index) => this.addDepartmentStatusBoard(sign.x, sign.y, sign.title, sign.subtitle, sign.accent, index));
+        this.addNeonDepartmentSign(152, 412, 'POLISH BAY', 0xffcf70, 6);
+        this.addNeonDepartmentSign(506, 288, 'LIVE FLOOR', 0x74e0a3, 7);
+    }
+
+    private addDepartmentStatusBoard(x: number, y: number, title: string, subtitle: string, accent: number, index: number) {
+        const group = this.add.container(x, y);
+        group.setDepth(3.6);
+        const board = this.add.graphics();
+        this.drawPixelShadow(board, -52, -17, 112, 38);
+        board.fillStyle(0x080a12, 0.88);
+        board.fillRoundedRect(-56, -24, 112, 42, 8);
+        board.lineStyle(1, accent, 0.82);
+        board.strokeRoundedRect(-56, -24, 112, 42, 8);
+        board.fillStyle(accent, 0.22);
+        board.fillRect(-50, -18, 100, 3);
+        board.fillStyle(accent, 0.9);
+        board.fillRect(-48, 10, 24 + (index % 4) * 14, 2);
+        board.fillStyle(0xffffff, 0.18);
+        board.fillRect(28, 10, 12, 2);
+        board.fillRect(43, 10, 5, 2);
+        const label = this.add.text(0, -9, title, SIGNAGE_TEXT_STYLE).setOrigin(0.5);
+        const sub = this.add.text(0, 7, subtitle, {
+            fontSize: '7px',
+            color: '#cbd5e1',
+            stroke: '#0b0f18',
+            strokeThickness: 2
+        }).setOrigin(0.5);
+        group.add([board, label, sub]);
+        this.tweens.add({
+            targets: group,
+            alpha: { from: 0.58, to: 1 },
+            y: y - 2,
+            duration: 2400 + index * 260,
+            delay: index * 120,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
+
+    private addNeonDepartmentSign(x: number, y: number, text: string, accent: number, index: number) {
+        const group = this.add.container(x, y);
+        group.setDepth(3.55);
+        const glow = this.add.rectangle(0, 0, 108, 18, accent, 0.14);
+        glow.setBlendMode(Phaser.BlendModes.ADD);
+        const label = this.add.text(0, 0, text, {
+            ...SIGNAGE_TEXT_STYLE,
+            fontSize: '9px',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+        group.add([glow, label]);
+        this.tweens.add({
+            targets: glow,
+            alpha: { from: 0.18, to: 0.62 },
+            scaleX: { from: 0.92, to: 1.04 },
+            duration: 1700 + index * 210,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
     }
 
     private addLightBloom(layer: Phaser.GameObjects.Container, x: number, y: number, radius: number, color: number, index: number) {
