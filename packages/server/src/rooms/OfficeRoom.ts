@@ -1,9 +1,9 @@
 import { Room, Client } from 'colyseus';
 import { OfficeState } from '../schema/OfficeState';
-import { Agent, Office, OfficeConfig, ConversationMessage } from '@agent-office/core';
-import { OllamaAdapter } from '@agent-office/adapters';
+import { Office, OfficeConfig } from '@agent-office/core';
 import { ToolExecutor } from '../tools/ToolExecutor';
 import { MemoryStore } from '../memory/MemoryStore';
+import { readSupervisorSnapshot, SupervisorSnapshot } from '../supervisor/SupervisorState';
 
 interface HighlightEvent {
     type: string;
@@ -22,15 +22,27 @@ interface RelationshipEdge {
     updatedAt: string;
 }
 
+interface FurnitureTarget {
+    x: number;
+    y: number;
+    type: string;
+    label?: string;
+}
+
+interface IdleActivityPlan {
+    targetKey: string;
+    action: 'play_ping_pong' | 'play_arcade' | 'sit_sofa' | 'coffee_break' | 'browse_books' | 'whiteboard_jam';
+    thought: string;
+    untilTick: number;
+}
+
 export class OfficeRoom extends Room<OfficeState> {
     private static activeRoom: OfficeRoom | null = null;
 
     maxClients = 100;
     private office!: Office;
     private demoTickCount = 0;
-    private coreAgents: Map<string, Agent> = new Map();
-    private thinkingLocks: Map<string, boolean> = new Map();
-    private ollamaAdapter = new OllamaAdapter('http://localhost:11434');
+    private supervisorSnapshot: SupervisorSnapshot = readSupervisorSnapshot();
     private hireCount = 0; // Counter for generating unique IDs
     private toolExecutor = new ToolExecutor();
     private memoryStore = new MemoryStore();
@@ -41,23 +53,34 @@ export class OfficeRoom extends Room<OfficeState> {
     private relationships: Map<string, RelationshipEdge> = new Map();
     private audienceVotes: Record<string, number> = {};
     private currentLayout: any[] = [];
+    private lifeTickCount = 0;
+    private supervisorRefreshTick = 0;
+    private idleActivityPlans: Map<string, IdleActivityPlan> = new Map();
 
-    // Furniture interaction points: named locations agents can walk to
-    private furnitureTargets: Record<string, { x: number; y: number; type: string }> = {
-        'alice-desk': { x: 5, y: 18, type: 'desk' },
-        'bob-desk': { x: 5, y: 23, type: 'desk' },
-        'meeting-table': { x: 10, y: 5, type: 'table' },
-        'coffee-machine': { x: 25, y: 25, type: 'appliance' },
-        'whiteboard': { x: 17, y: 3, type: 'board' },
-        'water-cooler': { x: 28, y: 27, type: 'appliance' },
-        'bookshelf': { x: 32, y: 12, type: 'furniture' },
-        'beanbag': { x: 28, y: 6, type: 'seating' },
-        // Extra desks for dynamically hired agents
-        'hire_0-desk': { x: 15, y: 18, type: 'desk' },
-        'hire_1-desk': { x: 15, y: 23, type: 'desk' },
-        'hire_2-desk': { x: 25, y: 18, type: 'desk' },
-        'hire_3-desk': { x: 25, y: 8, type: 'desk' },
-        'hire_4-desk': { x: 32, y: 18, type: 'desk' },
+    // Furniture interaction points are grid cells aligned to Game.ts' 64x64 polished office map.
+    // Coordinates represent where an agent's feet should stand next to the rendered prop.
+    private furnitureTargets: Record<string, FurnitureTarget> = {
+        'supervisor-0-desk': { x: 8, y: 13, type: 'desk', label: 'CEO / operator console' },
+        'supervisor-1-desk': { x: 26, y: 12, type: 'desk', label: 'General Manager console' },
+        'supervisor-2-desk': { x: 14, y: 13, type: 'desk', label: 'Debug lane console' },
+        'supervisor-3-desk': { x: 32, y: 33, type: 'desk', label: 'Validator lane console' },
+        'supervisor-4-desk': { x: 43, y: 30, type: 'desk', label: 'Dynamic worker console' },
+        'supervisor-5-desk': { x: 10, y: 30, type: 'desk', label: 'TUI pane console' },
+        'meeting-table': { x: 24, y: 19, type: 'table', label: 'Lounge table' },
+        'coffee-machine': { x: 34, y: 19, type: 'appliance', label: 'Coffee bar' },
+        'whiteboard': { x: 18, y: 6, type: 'board', label: 'Whiteboard' },
+        'bookshelf': { x: 43, y: 9, type: 'furniture', label: 'Research shelf' },
+        'ping-pong-left': { x: 26, y: 46, type: 'game', label: 'Ping-pong table left side' },
+        'ping-pong-right': { x: 31, y: 46, type: 'game', label: 'Ping-pong table right side' },
+        'arcade-cabinet': { x: 39, y: 45, type: 'game', label: 'Arcade cabinet' },
+        'sofa-seat': { x: 45, y: 49, type: 'seating', label: 'Sofa' },
+        'snack-bar': { x: 35, y: 48, type: 'appliance', label: 'Snack bar' },
+        // Extra desks for dynamically hired agents, aligned to remaining rendered workstation chairs.
+        'hire_0-desk': { x: 14, y: 13, type: 'desk', label: 'Art workstation B' },
+        'hire_1-desk': { x: 31, y: 12, type: 'desk', label: 'Content workstation B' },
+        'hire_2-desk': { x: 26, y: 17, type: 'desk', label: 'Content workstation C' },
+        'hire_3-desk': { x: 10, y: 30, type: 'desk', label: 'Polish workstation' },
+        'hire_4-desk': { x: 32, y: 33, type: 'desk', label: 'QA workstation' },
     };
 
     static getActiveRoom(): OfficeRoom | null {
@@ -73,59 +96,16 @@ export class OfficeRoom extends Room<OfficeState> {
 
         const config: OfficeConfig = {
             name: options.name || 'Startup HQ',
-            grid: { width: 40, height: 40, tileSize: 16 },
+            grid: { width: 64, height: 64, tileSize: 16 },
             rooms: [],
             furniture: [],
-            spawnPoints: [{ x: 10, y: 10 }],
+            spawnPoints: [{ x: 31, y: 3 }],
             zones: []
         };
         this.office = new Office(config);
 
-        // Setup Core Agents with AI capabilities
-        const setupCoreAgent = async (id: string, name: string, role: string, x: number, y: number) => {
-            this.state.createAgent(id, name);
-            const state = this.state.agents.get(id);
-            if (state) { state.x = x; state.y = y; }
-
-            const coreAgent = new Agent({
-                id, name, role, avatar: 'sprite.png',
-                inference: {
-                    provider: 'ollama',
-                    model: 'llama3.2:latest',
-                    systemPrompt: `You are ${name}, a ${role} in a virtual office. Be social, do your work, and collaborate with colleagues. Keep thoughts SHORT.`,
-                },
-                personality: {
-                    traits: { openness: 0.8, conscientiousness: 0.9, extraversion: 0.6, agreeableness: 0.7, neuroticism: 0.1 },
-                    communicationStyle: role === 'Engineer' ? 'technical' : 'casual',
-                    workHours: { start: '09:00', end: '17:00' },
-                    breakFrequency: 120
-                },
-                capabilities: [
-                    { name: 'code_execute', description: 'Execute JavaScript code' },
-                    { name: 'web_search', description: 'Search the web for information' },
-                    { name: 'write_note', description: 'Write a note or memo' },
-                    { name: 'create_task', description: 'Create a task and assign it to yourself or another agent' },
-                    { name: 'hire_agent', description: 'Hire a new team member (intern, developer, designer). Params: { name: string, role: string }' }
-                ],
-                memory: { shortTermLimit: 50 }
-            });
-
-            coreAgent.setInferenceAdapter(this.ollamaAdapter);
-            await coreAgent.initialize();
-
-            // Load persistent memories from previous sessions
-            const previousMemories = await this.memoryStore.loadMemories(id, 20);
-            if (previousMemories.length > 0) {
-                coreAgent.loadMemories(previousMemories);
-                console.log(`[${name}] Loaded ${previousMemories.length} memories from previous sessions`);
-            }
-
-            this.coreAgents.set(id, coreAgent);
-            this.thinkingLocks.set(id, false);
-        };
-
-        await setupCoreAgent('alice', 'Alice', 'Engineer', 10, 10);
-        await setupCoreAgent('bob', 'Bob', 'Product Manager', 20, 15);
+        // Bootstrap from real Codex Supervisor TUI panes, not invented social AI coworkers.
+        this.syncSupervisorPanes(readSupervisorSnapshot());
         this.rebuildRelationshipGraph();
         const savedLayout = await this.memoryStore.loadLayout('default');
         this.currentLayout = Array.isArray(savedLayout) ? savedLayout : [];
@@ -157,22 +137,19 @@ export class OfficeRoom extends Room<OfficeState> {
             const { title, agentId } = message;
             console.log(`[TaskBoard] Assigning "${title}" to ${agentId || 'auto'}`);
 
-            // Pick agent: explicit or auto-assign to least busy
             const targetId = agentId || this.autoAssignAgent();
-            const agent = this.coreAgents.get(targetId);
             const agentState = this.state.agents.get(targetId);
 
-            if (agent && agentState) {
-                agent.currentTask = title;
+            if (agentState) {
                 agentState.currentTask = title;
                 agentState.action = 'work';
+                agentState.thought = `Manual operator task: ${title}`;
 
-                // Persist task
                 this.memoryStore.createTask(title, targetId);
 
                 this.broadcast('chat', {
-                    sender: 'System',
-                    text: `📋 Task "${title}" assigned to ${agentState.name}`
+                    sender: 'Supervisor',
+                    text: `📋 Operator task "${title}" attached to ${agentState.name}`
                 });
 
                 this.broadcast('task-update', {
@@ -199,11 +176,39 @@ export class OfficeRoom extends Room<OfficeState> {
     }
 
     private autoAssignAgent(): string {
-        // Pick the agent with no current task, or the first one
-        for (const [id, agent] of this.coreAgents) {
+        for (const [id, agent] of this.state.agents) {
             if (!agent.currentTask) return id;
         }
-        return 'alice'; // fallback
+        return Array.from(this.state.agents.keys())[0] || 'supervisor-0';
+    }
+
+    // Supervisor roles rendered in the office: General Manager, Debug Lane, Validator Lane, Dynamic Worker.
+    private syncSupervisorPanes(snapshot: SupervisorSnapshot) {
+        this.supervisorSnapshot = snapshot;
+        const seen = new Set<string>();
+        snapshot.panes.forEach((pane, idx) => {
+            const id = `supervisor-${idx}`;
+            seen.add(id);
+            if (!this.state.agents.has(id)) this.state.createAgent(id, pane.name);
+            const agent = this.state.agents.get(id);
+            if (!agent) return;
+            agent.id = id;
+            agent.name = pane.name;
+            agent.x = pane.x;
+            agent.y = pane.y;
+            agent.direction = 'down';
+            agent.action = pane.action;
+            agent.currentTask = `${pane.role}: ${pane.currentTask}`;
+            agent.thought = pane.thought;
+            agent.mood = pane.state === 'dead' ? 0.25 : 0.72;
+            agent.reputation = pane.role === 'Validator Lane' ? 0.82 : 0.68;
+            agent.riskLevel = pane.action === 'debug' || pane.state === 'dead' ? 0.72 : 0.22;
+            agent.momentum = pane.action === 'work' || pane.action === 'run_tests' ? 0.78 : 0.58;
+        });
+        Array.from(this.state.agents.keys()).forEach((id) => {
+            if (!seen.has(id)) this.state.removeAgent(id);
+        });
+        this.broadcast('supervisor-state', snapshot);
     }
 
     async update(delta: number) {
@@ -213,227 +218,15 @@ export class OfficeRoom extends Room<OfficeState> {
 
         this.state.officeTime = new Date().toISOString();
 
-        // ─── AGENT THINK CYCLE ───
-        this.coreAgents.forEach((coreAgent, id) => {
-            if (!this.thinkingLocks.get(id)) {
-                this.thinkingLocks.set(id, true);
-
-                const agentState = this.state.agents.get(id);
-                if (!agentState) return;
-
-                // Build nearby agents list
-                const nearbyAgents: { name: string; role: string; distance: number }[] = [];
-                this.coreAgents.forEach((other, otherId) => {
-                    if (otherId === id) return;
-                    const otherState = this.state.agents.get(otherId);
-                    if (otherState) {
-                        const dist = Math.abs(agentState.x - otherState.x) + Math.abs(agentState.y - otherState.y);
-                        nearbyAgents.push({ name: other.config.name, role: other.config.role, distance: dist });
-                    }
-                });
-
-                coreAgent.think({
-                    time: this.state.officeTime,
-                    location: `${agentState.x},${agentState.y}`,
-                    nearbyAgents,
-                    currentTask: coreAgent.currentTask || null,
-                    recentMessages: coreAgent.getUnreadMessages(),
-                    memories: coreAgent.getRecentMemories(5)
-                }).then(async (decision) => {
-                    agentState.action = decision.action;
-
-                    if (decision.thought) {
-                        agentState.thought = decision.thought;
-                    }
-
-                    // ─── HANDLE TALK ACTION (Agent-to-Agent) ───
-                    if (decision.action === 'talk' && decision.message) {
-                        const targetName = decision.target || '';
-                        let targetId = '';
-                        this.coreAgents.forEach((a, aId) => {
-                            if (a.config.name.toLowerCase() === targetName.toLowerCase()) targetId = aId;
-                        });
-
-                        const targetAgent = this.coreAgents.get(targetId);
-                        if (targetAgent) {
-                            const msg: ConversationMessage = {
-                                from: coreAgent.config.name,
-                                to: targetAgent.config.name,
-                                content: decision.message,
-                                timestamp: this.state.officeTime
-                            };
-                            targetAgent.receiveMessage(msg);
-
-                            // Broadcast to UI chat
-                            this.broadcast('chat', {
-                                sender: coreAgent.config.name,
-                                text: `💬 (to ${targetAgent.config.name}): ${decision.message}`
-                            });
-                            this.emitHighlight(
-                                'conversation',
-                                `${coreAgent.config.name} pinged ${targetAgent.config.name}`,
-                                decision.message.slice(0, 120),
-                                id
-                            );
-                            this.updateRelationship(id, targetId, 0.08);
-
-                            // Save conversation memory
-                            await this.memoryStore.saveMemory(id, {
-                                content: `Said to ${targetAgent.config.name}: "${decision.message}"`,
-                                type: 'conversation',
-                                timestamp: this.state.officeTime,
-                                importance: 0.7
-                            }, this.sessionId);
-                        }
-
-                        coreAgent.clearInbox(); // Clear after processing
-                    }
-
-                    // ─── HANDLE TOOL EXECUTION ───
-                    if (decision.action === 'use_tool' && decision.toolCall) {
-                        // Special case: agent-created tasks
-                        if (decision.toolCall.name === 'create_task') {
-                            const { title, assignee } = decision.toolCall.params;
-                            const targetId = assignee?.toLowerCase() || this.autoAssignAgent();
-                            const targetAgent = this.coreAgents.get(targetId);
-                            const targetState = this.state.agents.get(targetId);
-
-                            if (targetAgent && targetState) {
-                                targetAgent.currentTask = title;
-                                targetState.currentTask = title;
-                                await this.memoryStore.createTask(title, targetId);
-
-                                this.broadcast('chat', {
-                                    sender: coreAgent.config.name,
-                                    text: `📋 Created task "${title}" for ${targetAgent.config.name}`
-                                });
-                                this.broadcast('task-update', {
-                                    agentId: targetId,
-                                    agentName: targetAgent.config.name,
-                                    task: title,
-                                    status: 'in_progress'
-                                });
-                                this.emitHighlight(
-                                    'task',
-                                    `${coreAgent.config.name} assigned work`,
-                                    `"${title}" is now owned by ${targetAgent.config.name}.`,
-                                    targetId
-                                );
-                            }
-                        } else if (decision.toolCall.name === 'hire_agent') {
-                            // ─── DYNAMIC AGENT HIRING ───
-                            const hireParams = decision.toolCall.params;
-                            const hireName = hireParams.name || ['Charlie', 'Diana', 'Eve', 'Frank', 'Grace'][this.hireCount % 5];
-                            const hireRole = hireParams.role || 'Intern';
-                            const hireId = `hire_${this.hireCount}`;
-
-                            if (this.hireCount < 5 && !this.coreAgents.has(hireId)) {
-                                // Spawn at office door (top-center), then walk to their desk
-                                const spawnX = 20;
-                                const spawnY = 2;
-
-                                this.state.createAgent(hireId, hireName);
-                                const hireState = this.state.agents.get(hireId);
-                                if (hireState) { hireState.x = spawnX; hireState.y = spawnY; }
-
-                                const hireAgent = new Agent({
-                                    id: hireId, name: hireName, role: hireRole, avatar: 'sprite.png',
-                                    inference: {
-                                        provider: 'ollama',
-                                        model: 'llama3.2:latest',
-                                        systemPrompt: `You are ${hireName}, a ${hireRole} who just joined the team at a virtual office. You were hired by ${coreAgent.config.name}. Be enthusiastic, helpful, and eager to learn. Introduce yourself to your colleagues. Keep thoughts SHORT.`,
-                                    },
-                                    personality: {
-                                        traits: { openness: 0.9, conscientiousness: 0.7, extraversion: 0.8, agreeableness: 0.9, neuroticism: 0.2 },
-                                        communicationStyle: hireRole.includes('Design') ? 'creative' : 'casual',
-                                        workHours: { start: '09:00', end: '17:00' },
-                                        breakFrequency: 90
-                                    },
-                                    capabilities: [
-                                        { name: 'code_execute', description: 'Execute JavaScript code' },
-                                        { name: 'web_search', description: 'Search the web' },
-                                        { name: 'write_note', description: 'Write a note' },
-                                        { name: 'create_task', description: 'Create a task for the team' }
-                                    ],
-                                    memory: { shortTermLimit: 50 }
-                                });
-
-                                hireAgent.setInferenceAdapter(this.ollamaAdapter);
-                                await hireAgent.initialize();
-                                this.coreAgents.set(hireId, hireAgent);
-                                this.thinkingLocks.set(hireId, false);
-
-                                this.hireCount++;
-                                this.rebuildRelationshipGraph();
-
-                                this.broadcast('chat', {
-                                    sender: '🏢 Office',
-                                    text: `🎉 ${coreAgent.config.name} hired ${hireName} as ${hireRole}! Welcome to the team!`
-                                });
-                                this.emitHighlight(
-                                    'hiring',
-                                    `${hireName} joined the team`,
-                                    `${coreAgent.config.name} hired ${hireName} (${hireRole}).`,
-                                    hireId
-                                );
-
-                                // Give the hiring agent a memory of the hire
-                                coreAgent.addMemory({
-                                    content: `I hired ${hireName} as a ${hireRole}. They just joined the team.`,
-                                    type: 'achievement',
-                                    timestamp: this.state.officeTime,
-                                    importance: 0.9
-                                });
-                            } else if (this.hireCount >= 5) {
-                                this.broadcast('chat', {
-                                    sender: '🏢 Office',
-                                    text: `⚠️ ${coreAgent.config.name} tried to hire but the office is full! (Max 7 agents)`
-                                });
-                            }
-                        } else {
-                            const result = await this.toolExecutor.execute(
-                                decision.toolCall.name,
-                                decision.toolCall.params
-                            );
-
-                            this.broadcast('chat', {
-                                sender: coreAgent.config.name,
-                                text: `🔧 Used tool [${decision.toolCall.name}]: ${result.success ? result.output.slice(0, 100) : result.error}`
-                            });
-                            this.emitHighlight(
-                                'tool',
-                                `${coreAgent.config.name} used ${decision.toolCall.name}`,
-                                (result.success ? result.output : result.error || 'Tool failed').slice(0, 120),
-                                id
-                            );
-
-                            coreAgent.addMemory({
-                                content: `Tool ${decision.toolCall.name} result: ${result.output.slice(0, 200)}`,
-                                type: 'task_result',
-                                timestamp: this.state.officeTime,
-                                importance: 0.8
-                            });
-                        }
-                    }
-
-                    // ─── PERSIST MEMORIES PERIODICALLY ───
-                    if (Math.random() < 0.3) {
-                        const recentMemories = coreAgent.memories.slice(-3);
-                        await this.memoryStore.saveMemories(id, recentMemories, this.sessionId);
-                    }
-
-                    setTimeout(() => this.thinkingLocks.set(id, false), 15000);
-
-                }).catch(err => {
-                    console.error(`Agent ${id} think error:`, err);
-                    setTimeout(() => this.thinkingLocks.set(id, false), 15000);
-                });
-            }
-        });
+        this.supervisorRefreshTick++;
+        if (this.supervisorRefreshTick >= 50) {
+            this.supervisorRefreshTick = 0;
+            this.syncSupervisorPanes(readSupervisorSnapshot());
+        }
 
         // ─── FURNITURE INTERACTION PATHFINDING ───
-        // Office grid boundaries (agents must stay inside)
-        const BOUNDS = { minX: 2, maxX: 36, minY: 2, maxY: 36 };
+        // Office grid boundaries (agents must stay inside the 64x64 rendered map)
+        const BOUNDS = { minX: 3, maxX: 60, minY: 3, maxY: 60 };
         const clamp = (agent: any) => {
             agent.x = Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, agent.x));
             agent.y = Math.max(BOUNDS.minY, Math.min(BOUNDS.maxY, agent.y));
@@ -442,12 +235,9 @@ export class OfficeRoom extends Room<OfficeState> {
         this.demoTickCount++;
         if (this.demoTickCount >= 5) {
             this.demoTickCount = 0;
+            this.lifeTickCount++;
             this.state.agents.forEach((agent, key) => {
-                // Default targets: agent's own desk chair
-                const deskKey = `${key}-desk`;
-                const target = this.furnitureTargets[deskKey] || { x: 5, y: 18 };
-
-                // If agent action is 'talk', move towards the other agent instead
+                // If agent action is 'talk', move towards the other agent and stay there while conversing.
                 if (agent.action === 'talk') {
                     let closest: { x: number; y: number } | null = null;
                     let minDist = Infinity;
@@ -456,28 +246,79 @@ export class OfficeRoom extends Room<OfficeState> {
                         const dist = Math.abs(agent.x - other.x) + Math.abs(agent.y - other.y);
                         if (dist < minDist) { minDist = dist; closest = { x: other.x, y: other.y + 2 }; }
                     });
-                    if (closest && minDist > 2) {
-                        const c = closest as { x: number; y: number };
-                        if (agent.x < c.x) agent.x += 1;
-                        else if (agent.x > c.x) agent.x -= 1;
-                        else if (agent.y < c.y) agent.y += 1;
-                        else if (agent.y > c.y) agent.y -= 1;
-                        clamp(agent);
+                    if (closest) {
+                        if (minDist > 2) {
+                            const c = closest as { x: number; y: number };
+                            this.stepToward(agent, c);
+                            clamp(agent);
+                        }
+                        this.idleActivityPlans.delete(key);
+                        this.updateAgentViralMetrics(key, agent.action);
                         return;
                     }
                 }
 
-                // Walk to desk/furniture target
-                if (agent.x < target.x) agent.x += 1;
-                else if (agent.x > target.x) agent.x -= 1;
-                else if (agent.y < target.y) agent.y += 1;
-                else if (agent.y > target.y) agent.y -= 1;
+                const target = this.resolveAgentTarget(key, agent);
+                this.stepToward(agent, target);
                 clamp(agent);
+
+                if (agent.x === target.x && agent.y === target.y) {
+                    const plan = this.idleActivityPlans.get(key);
+                    if (plan && target === this.furnitureTargets[plan.targetKey]) {
+                        agent.action = plan.action;
+                        agent.thought = plan.thought;
+                    }
+                }
 
                 // Keep viral telemetry alive for UI overlays and highlights.
                 this.updateAgentViralMetrics(key, agent.action);
             });
         }
+    }
+
+    private stepToward(agent: { x: number; y: number }, target: { x: number; y: number }) {
+        if (agent.x < target.x) agent.x += 1;
+        else if (agent.x > target.x) agent.x -= 1;
+        else if (agent.y < target.y) agent.y += 1;
+        else if (agent.y > target.y) agent.y -= 1;
+    }
+
+    private resolveAgentTarget(agentId: string, agent: { action: string; currentTask?: string; thought?: string }): FurnitureTarget {
+        const deskKey = `${agentId}-desk`;
+        const desk = this.furnitureTargets[deskKey] || this.furnitureTargets['supervisor-0-desk'];
+        const shouldWork = Boolean(agent.currentTask) || agent.action === 'work' || agent.action === 'use_tool';
+        if (shouldWork) {
+            this.idleActivityPlans.delete(agentId);
+            return desk;
+        }
+
+        let plan = this.idleActivityPlans.get(agentId);
+        if (!plan || plan.untilTick <= this.lifeTickCount) {
+            plan = this.chooseIdleActivity(agentId);
+            this.idleActivityPlans.set(agentId, plan);
+        }
+
+        const target = this.furnitureTargets[plan.targetKey] || desk;
+        agent.action = plan.action;
+        if (!agent.thought || Math.random() < 0.08) agent.thought = plan.thought;
+        return target;
+    }
+
+    private chooseIdleActivity(agentId: string): IdleActivityPlan {
+        const options: Array<Omit<IdleActivityPlan, 'untilTick'>> = [
+            { targetKey: 'ping-pong-left', action: 'play_ping_pong', thought: 'Quick ping-pong rally in the rest zone.' },
+            { targetKey: 'arcade-cabinet', action: 'play_arcade', thought: 'Chasing the office high score.' },
+            { targetKey: 'sofa-seat', action: 'sit_sofa', thought: 'Resetting on the sofa before the next task.' },
+            { targetKey: 'snack-bar', action: 'coffee_break', thought: 'Refueling at the snack bar.' },
+            { targetKey: 'bookshelf', action: 'browse_books', thought: 'Browsing notes for a fresh idea.' },
+            { targetKey: 'whiteboard', action: 'whiteboard_jam', thought: 'Sketching the next plan on the board.' }
+        ];
+        const hash = Array.from(agentId).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+        const selected = options[(hash + this.lifeTickCount) % options.length];
+        return {
+            ...selected,
+            untilTick: this.lifeTickCount + 10 + (hash % 8)
+        };
     }
 
     private clamp01(value: number): number {
@@ -505,11 +346,13 @@ export class OfficeRoom extends Room<OfficeState> {
             action === 'work' ? 0.015 :
                 action === 'talk' ? 0.02 :
                     action === 'use_tool' ? 0.03 :
-                        -0.005;
+                        ['play_ping_pong', 'play_arcade', 'sit_sofa', 'coffee_break', 'browse_books', 'whiteboard_jam'].includes(action) ? 0.012 :
+                            -0.005;
 
         state.momentum = this.clamp01(state.momentum + actionBoost + jitter);
         state.riskLevel = this.clamp01(state.riskLevel + (action === 'use_tool' ? 0.02 : -0.004) + jitter);
-        state.mood = this.clamp01(state.mood + (action === 'talk' ? 0.02 : -0.002) + jitter);
+        const isBreak = ['play_ping_pong', 'play_arcade', 'sit_sofa', 'coffee_break', 'browse_books', 'whiteboard_jam'].includes(action);
+        state.mood = this.clamp01(state.mood + (action === 'talk' ? 0.02 : isBreak ? 0.014 : -0.002) + jitter);
         state.reputation = this.clamp01(state.reputation + (action === 'work' ? 0.015 : 0.001) + jitter / 2);
     }
 
@@ -758,10 +601,6 @@ export class OfficeRoom extends Room<OfficeState> {
     async onDispose() {
         console.log("room", this.roomId, "disposing... saving memories");
         OfficeRoom.activeRoom = null;
-        // Persist all agent memories on shutdown
-        for (const [id, agent] of this.coreAgents) {
-            await this.memoryStore.saveMemories(id, agent.memories, this.sessionId);
-        }
         await this.memoryStore.close();
     }
 }

@@ -2,13 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 type Position = { x: number; y: number };
 
+const PANEL_LAYOUT_VERSION = 'v7-visible-panes-reset';
+
 interface FloatingPanelProps {
     id: string;
     title: string;
     width: number;
     defaultY?: number;
-    defaultDock?: 'left' | 'right';
+    defaultDock?: 'left' | 'center' | 'right';
     defaultMinimized?: boolean;
+    bodyMaxHeight?: number;
     zIndex?: number;
     children: React.ReactNode;
     subtitle?: string;
@@ -33,15 +36,16 @@ export function FloatingPanel({
     defaultMinimized = false,
     zIndex = 14,
     subtitle,
+    bodyMaxHeight,
     children
 }: FloatingPanelProps) {
-    const storageKey = useMemo(() => `panel:${id}:state`, [id]);
+    const storageKey = useMemo(() => `panel:${id}:state:${PANEL_LAYOUT_VERSION}`, [id]);
 
     const [position, setPosition] = useState<Position>(() => {
         if (typeof window === 'undefined') return { x: 20, y: defaultY };
         try {
             const raw = window.localStorage.getItem(storageKey);
-            if (raw) {
+            if (raw && defaultMinimized) {
                 const parsed = JSON.parse(raw) as { x: number; y: number };
                 return clampPosition({ x: parsed.x, y: parsed.y }, width);
             }
@@ -50,7 +54,9 @@ export function FloatingPanel({
         }
         const dockX = defaultDock === 'right'
             ? Math.max(8, window.innerWidth - width - 24)
-            : 24;
+            : defaultDock === 'center'
+                ? Math.max(8, Math.round((window.innerWidth - width) / 2))
+                : 24;
         return { x: dockX, y: defaultY };
     });
 
@@ -58,7 +64,7 @@ export function FloatingPanel({
         if (typeof window === 'undefined') return defaultMinimized;
         try {
             const raw = window.localStorage.getItem(storageKey);
-            if (raw) {
+            if (raw && defaultMinimized) {
                 const parsed = JSON.parse(raw) as { minimized?: boolean };
                 if (typeof parsed.minimized === 'boolean') return parsed.minimized;
             }
@@ -155,7 +161,7 @@ export function FloatingPanel({
             </div>
 
             {!minimized && (
-                <div style={{ padding: 10 }}>
+                <div style={{ padding: 10, maxHeight: bodyMaxHeight, overflowY: bodyMaxHeight ? 'auto' : undefined }}>
                     {children}
                 </div>
             )}
