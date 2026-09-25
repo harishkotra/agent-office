@@ -68,6 +68,13 @@ export class ToolExecutor {
     }
 
     private async webSearch(query: string): Promise<ToolResult> {
+        // When YDC_API_KEY is set, prefer You.com search (keyed or keyless).
+        // Falls back to Tavily → DuckDuckGo when the env var is unset.
+        const youcomKey = process.env.YDC_API_KEY;
+        if (youcomKey !== undefined) {
+            return this.webSearchYoucom(query, youcomKey);
+        }
+
         const client = this.getTavilyClient();
         if (client) {
             return this.webSearchTavily(query, client);
@@ -112,6 +119,38 @@ export class ToolExecutor {
             return { success: true, output };
         } catch (e: any) {
             return { success: false, output: '', error: `Search failed: ${e.message}` };
+        }
+    }
+
+    private async webSearchYoucom(query: string, apiKey: string): Promise<ToolResult> {
+        try {
+            const url = new URL('https://api.you.com/v1/search');
+            url.searchParams.set('query', query);
+            url.searchParams.set('num_web_results', '5');
+
+            const res = await fetch(url.toString(), {
+                headers: { 'X-API-Key': apiKey },
+            });
+
+            if (!res.ok) {
+                const text = await res.text().catch(() => '');
+                throw new Error(`You.com search API responded with ${res.status}: ${text.slice(0, 200)}`);
+            }
+
+            const data = await res.json();
+            const hits: { title?: string; description?: string; url?: string }[] =
+                data.results || data.webPages?.value || [];
+
+            const output = hits.length
+                ? hits
+                    .slice(0, 5)
+                    .map((r) => `${r.title || '(no title)'}: ${(r.description || '').slice(0, 300)}`)
+                    .join('\n\n')
+                : `No results for "${query}".`;
+
+            return { success: true, output };
+        } catch (e: any) {
+            return { success: false, output: '', error: `You.com search failed: ${e.message}` };
         }
     }
 
