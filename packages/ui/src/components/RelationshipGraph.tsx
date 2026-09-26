@@ -34,8 +34,9 @@ export function RelationshipGraph() {
             title="Relationship Graph"
             subtitle="Alliances and rivalries"
             width={300}
-            defaultDock="right"
-            defaultY={220}
+            defaultDock="center"
+            defaultY={150}
+            bodyMaxHeight={160}
             zIndex={16}
         >
             {visible.length === 0 && (

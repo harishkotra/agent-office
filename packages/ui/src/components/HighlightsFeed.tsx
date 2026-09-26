@@ -39,8 +39,9 @@ export function HighlightsFeed() {
             title="Highlight Timeline"
             subtitle="Live dramatic moments"
             width={320}
-            defaultDock="right"
-            defaultY={430}
+            defaultDock="center"
+            defaultY={560}
+            bodyMaxHeight={170}
             zIndex={15}
         >
             {items.length === 0 && (

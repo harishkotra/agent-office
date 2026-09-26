@@ -6,12 +6,24 @@ export default defineConfig({
         react()
     ],
     server: {
-        port: 5173,
+        port: 7777,
         proxy: {
             '/api': 'http://localhost:3000',
         }
     },
     build: {
-        outDir: 'dist'
+        outDir: 'dist',
+        // Phaser is intentionally shipped as a dedicated game-engine vendor chunk.
+        // Keep the production build warning focused on unexpected app-bundle growth.
+        chunkSizeWarningLimit: 1300,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    phaser: ['phaser'],
+                    react: ['react', 'react-dom'],
+                    colyseus: ['colyseus.js', '@colyseus/schema']
+                }
+            }
+        }
     }
 });
