@@ -29,7 +29,7 @@ Movement is a blend of Super Mario 64 (acceleration, jump chains, camera-relativ
 
 Hop-in is a normal page on the family site, not a frame on another origin. Same origin keeps the Supabase session in the browser, so the estate does not take a token through `postMessage`.
 
-Family Manager hosts the built client at `https://mccowanestate.com/estate/` and links it for signed-in members. The build uses relative asset paths (`base: './'`). Set `VITE_PRESENCE_URL` to the presence websocket before building. See [docs/docs/family-estate.md](docs/docs/family-estate.md).
+Family Manager hosts the built client at `https://mccowanestate.com/estate/` and links it for signed-in members. The build uses relative asset paths (`base: './'`). Set `VITE_PRESENCE_URL` to a websocket on that same host before building. A `?ws=` query cannot retarget it. See [docs/docs/family-estate.md](docs/docs/family-estate.md).
 
 A walker is created only after the presence server checks the live session and matches it to one living `tree_people` row (the roster Family Manager keeps). A guest, an anonymous socket, or an account that is not on that roster never appears.
 

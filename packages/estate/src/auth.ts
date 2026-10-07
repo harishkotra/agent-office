@@ -1,6 +1,6 @@
 import { createClient, type Session } from '@supabase/supabase-js'
 import { FAMILY_SITE, SUPABASE_ANON_KEY, SUPABASE_URL } from './family'
-import { matchLiving, rosterMessage, type NameProfile, type RosterPerson } from './living'
+import { matchLiving, rosterMessage, type RosterPerson } from './living'
 
 export type Member = {
   id: string
@@ -19,18 +19,10 @@ function sb() {
 
 async function memberFromSession(session: Session): Promise<Member> {
   const user = session.user
-  const meta = (user.user_metadata || {}) as NameProfile
-  const { data: profileRow } = await sb()
-    .from('profiles')
-    .select('first_name,last_name,middle_name,second_last_name,name_prefix,name_suffix')
-    .eq('id', user.id)
-    .maybeSingle()
-  const profile = { ...meta, ...(profileRow as NameProfile | null) }
   const { data: people, error } = await sb().from('tree_people').select('id,name,role,email')
   if (error || !Array.isArray(people)) throw new Error(rosterMessage('roster'))
   const match = matchLiving({
     email: user.email,
-    profile,
     people: people as RosterPerson[],
   })
   if (!match.person) throw new Error(rosterMessage(match.error))

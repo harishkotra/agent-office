@@ -29,16 +29,6 @@ export async function verifyFamilyToken(token) {
     const user = await res.json()
     if (!user || typeof user.id !== 'string' || !USER_ID.test(user.id)) return { error: rosterMessage('auth') }
 
-    let profile = user.user_metadata || {}
-    const profileRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=first_name,last_name,middle_name,second_last_name,name_prefix,name_suffix`,
-      { headers: headers(token), signal: ctrl.signal },
-    )
-    if (profileRes.ok) {
-      const rows = await profileRes.json()
-      if (rows && rows[0]) profile = { ...profile, ...rows[0] }
-    }
-
     const treeRes = await fetch(`${SUPABASE_URL}/rest/v1/tree_people?select=id,name,role,email`, {
       headers: headers(token),
       signal: ctrl.signal,
@@ -47,7 +37,7 @@ export async function verifyFamilyToken(token) {
     const people = await treeRes.json()
     if (!Array.isArray(people)) return { error: rosterMessage('roster') }
 
-    const match = matchLiving({ email: user.email, profile, people })
+    const match = matchLiving({ email: user.email, people })
     if (!match.person) return { error: rosterMessage(match.error) }
     const name = cleanName(match.person.name)
     if (!name || name === 'Guest') return { error: rosterMessage('none') }

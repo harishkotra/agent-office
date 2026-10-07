@@ -5,53 +5,36 @@ function norm(value) {
     .toLowerCase()
 }
 
-// Same living check as the family site directory (personPassed).
-// The rows themselves come from tree_people, which Family Manager keeps.
+// Memorial list from Legacy Bot / the family directory, plus the directory's
+// personPassed rule (those ids, and any role that says passed).
+const MEMORIAL_IDS = new Set(['evelyn', 'lee', 'vivian', 'sammy', 'jeremiah'])
+const MEMORIAL_NAMES = new Set([
+  'evelyn rosborough',
+  'vivian mccowan',
+  'lee rosborough',
+  'sammy mccowan iii',
+  'jeremiah devon mccowan',
+])
+
 export function personPassed(person) {
   if (!person) return true
-  if (person.id === 'evelyn' || person.id === 'vivian') return true
+  if (MEMORIAL_IDS.has(String(person.id || '').toLowerCase())) return true
+  if (MEMORIAL_NAMES.has(norm(person.name))) return true
   return /passed/i.test(person.role || '')
 }
 
-function named(profile, keys) {
-  return norm(
-    keys
-      .map((key) => profile?.[key])
-      .filter((part) => typeof part === 'string' && part.trim())
-      .join(' '),
-  )
-}
-
-export function profileNames(profile) {
-  const names = new Set()
-  for (const name of [
-    named(profile, ['name_prefix', 'first_name', 'middle_name', 'last_name', 'second_last_name', 'name_suffix']),
-    named(profile, ['first_name', 'middle_name', 'last_name']),
-    named(profile, ['first_name', 'last_name', 'second_last_name']),
-    named(profile, ['first_name', 'last_name']),
-  ]) {
-    if (name) names.add(name)
-  }
-  return names
-}
-
-export function matchLiving({ email, profile, people }) {
+// Admission is an email link to one living tree_people row.
+// Name matching is not used, so a new account cannot walk as someone else.
+export function matchLiving({ email, people }) {
   const rows = Array.isArray(people) ? people.filter((person) => person && person.id && person.name) : []
   const mail = norm(email)
-  if (mail) {
-    const byEmail = rows.filter((person) => norm(person.email) === mail)
-    if (byEmail.length > 1) return { error: 'ambiguous' }
-    if (byEmail.length === 1) {
-      if (personPassed(byEmail[0])) return { error: 'passed' }
-      return { person: byEmail[0] }
-    }
+  if (!mail) return { error: 'none' }
+  const byEmail = rows.filter((person) => norm(person.email) === mail)
+  if (byEmail.length > 1) return { error: 'ambiguous' }
+  if (byEmail.length === 1) {
+    if (personPassed(byEmail[0])) return { error: 'passed' }
+    return { person: byEmail[0] }
   }
-  const wanted = profileNames(profile || {})
-  if (wanted.size === 0) return { error: 'none' }
-  const byName = rows.filter((person) => !personPassed(person) && wanted.has(norm(person.name)))
-  const unique = [...new Map(byName.map((person) => [person.id, person])).values()]
-  if (unique.length === 1) return { person: unique[0] }
-  if (unique.length > 1) return { error: 'ambiguous' }
   return { error: 'none' }
 }
 

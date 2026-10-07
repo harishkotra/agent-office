@@ -5,15 +5,6 @@ export type RosterPerson = {
   email?: string | null
 }
 
-export type NameProfile = {
-  first_name?: string | null
-  last_name?: string | null
-  middle_name?: string | null
-  second_last_name?: string | null
-  name_prefix?: string | null
-  name_suffix?: string | null
-}
-
 function norm(value: unknown) {
   return String(value ?? '')
     .replace(/\s+/g, ' ')
@@ -21,61 +12,42 @@ function norm(value: unknown) {
     .toLowerCase()
 }
 
-// Same living check as the family site directory (personPassed).
-// Keep this in step with packages/estate-server/src/living.js.
+// Memorial list from Legacy Bot / the family directory, plus the directory's
+// personPassed rule. Keep this in step with packages/estate-server/src/living.js.
+const MEMORIAL_IDS = new Set(['evelyn', 'lee', 'vivian', 'sammy', 'jeremiah'])
+const MEMORIAL_NAMES = new Set([
+  'evelyn rosborough',
+  'vivian mccowan',
+  'lee rosborough',
+  'sammy mccowan iii',
+  'jeremiah devon mccowan',
+])
+
 export function personPassed(person: RosterPerson | null | undefined) {
   if (!person) return true
-  if (person.id === 'evelyn' || person.id === 'vivian') return true
+  if (MEMORIAL_IDS.has(String(person.id || '').toLowerCase())) return true
+  if (MEMORIAL_NAMES.has(norm(person.name))) return true
   return /passed/i.test(person.role || '')
 }
 
-function named(profile: NameProfile | null | undefined, keys: (keyof NameProfile)[]) {
-  return norm(
-    keys
-      .map((key) => profile?.[key])
-      .filter((part) => typeof part === 'string' && part.trim())
-      .join(' '),
-  )
-}
-
-export function profileNames(profile: NameProfile | null | undefined) {
-  const names = new Set<string>()
-  for (const name of [
-    named(profile, ['name_prefix', 'first_name', 'middle_name', 'last_name', 'second_last_name', 'name_suffix']),
-    named(profile, ['first_name', 'middle_name', 'last_name']),
-    named(profile, ['first_name', 'last_name', 'second_last_name']),
-    named(profile, ['first_name', 'last_name']),
-  ]) {
-    if (name) names.add(name)
-  }
-  return names
-}
-
+// Admission is an email link to one living tree_people row.
+// Name matching is not used, so a new account cannot walk as someone else.
 export function matchLiving({
   email,
-  profile,
   people,
 }: {
   email?: string | null
-  profile?: NameProfile | null
   people?: RosterPerson[] | null
 }): { person?: RosterPerson; error?: 'ambiguous' | 'passed' | 'none' } {
   const rows = Array.isArray(people) ? people.filter((person) => person && person.id && person.name) : []
   const mail = norm(email)
-  if (mail) {
-    const byEmail = rows.filter((person) => norm(person.email) === mail)
-    if (byEmail.length > 1) return { error: 'ambiguous' }
-    if (byEmail.length === 1) {
-      if (personPassed(byEmail[0])) return { error: 'passed' }
-      return { person: byEmail[0] }
-    }
+  if (!mail) return { error: 'none' }
+  const byEmail = rows.filter((person) => norm(person.email) === mail)
+  if (byEmail.length > 1) return { error: 'ambiguous' }
+  if (byEmail.length === 1) {
+    if (personPassed(byEmail[0])) return { error: 'passed' }
+    return { person: byEmail[0] }
   }
-  const wanted = profileNames(profile)
-  if (wanted.size === 0) return { error: 'none' }
-  const byName = rows.filter((person) => !personPassed(person) && wanted.has(norm(person.name)))
-  const unique = [...new Map(byName.map((person) => [person.id, person])).values()]
-  if (unique.length === 1) return { person: unique[0] }
-  if (unique.length > 1) return { error: 'ambiguous' }
   return { error: 'none' }
 }
 

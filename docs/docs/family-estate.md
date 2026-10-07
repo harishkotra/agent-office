@@ -25,12 +25,11 @@ The presence server accepts a join only with a live Supabase access token from t
 
 Living uses the same check as the family site directory: records `evelyn` and `vivian` are not living, and a role that says passed is not living. The rows themselves belong to Family Manager. This repo does not keep its own roster.
 
-Match order:
+The account email must equal one `tree_people.email`. That is the link Family Manager sets. A matching name is not enough, so a new account cannot walk as someone else.
 
-1. The account email equals one `tree_people.email`.
-2. Otherwise the profile name equals one living `tree_people.name`.
+No email link, a memorial match, or more than one match is refused. The name on the grounds is the roster name. One living member is one walker.
 
-No match, a passed match, or more than one match is refused. The name on the grounds is the roster name. One living member is one walker.
+Memorial records stay off the grounds: Evelyn Rosborough, Lee Rosborough, Vivian McCowan, Sammy McCowan III, and Jeremiah Devon McCowan, along with any roster row whose role says passed.
 
 ## Same-origin hop-in
 
@@ -44,6 +43,6 @@ Copy `packages/estate/dist` to `estate/` on mccowanestate.com so the page is `ht
 
 The estate client uses the same Supabase URL and anon key as the site, with the default auth storage key. On that origin, `getSession()` is the sign-in the member already completed.
 
-Set `VITE_PRESENCE_URL` to the `wss://` presence server before the production build. The page sends only that session token over the websocket. The server checks it again before anyone is added to the roster.
+Set `VITE_PRESENCE_URL` to a `wss://` presence socket on the same host as the page before the production build. The page ignores any `?ws=` override, so the access token cannot be pointed at another host. The server checks the token again before anyone is added to the roster.
 
 Zones include the Great Hall, both wings, the porch, fountain court, pool, gazebo, chapel garden, pond, orchard, hedge garden, front gate, and the outer lawns.

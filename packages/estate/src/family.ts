@@ -63,10 +63,18 @@ export function parentOrigin(): string | null {
   }
 }
 
+function socketOnThisHost(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'ws:' || url.protocol === 'wss:') && url.hostname === window.location.hostname
+  } catch {
+    return false
+  }
+}
+
 export function presenceUrl(): string {
-  const query = new URLSearchParams(window.location.search).get('ws')
-  if (query) return query
-  if (import.meta.env.VITE_PRESENCE_URL) return import.meta.env.VITE_PRESENCE_URL
+  const baked = import.meta.env.VITE_PRESENCE_URL
+  if (baked && socketOnThisHost(baked)) return baked
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   if (window.location.port === '5174' || window.location.port === '4174') {
     return `${proto}//${window.location.hostname}:8787`
