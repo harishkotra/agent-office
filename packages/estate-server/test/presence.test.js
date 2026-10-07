@@ -44,34 +44,25 @@ test('a room keeps the latest place for each person', () => {
   assert.equal(room.applyState(socket, { x: 12, y: 1, z: -4, yaw: 1.2, anim: 'run', zone: 'Orchard' }), true)
   const snap = room.snapshot()
   assert.equal(snap.players[0].zone, 'Orchard')
-  assert.equal(snap.players[0].guest, false)
+  assert.equal(snap.players[0].name, 'Ada')
   assert.equal(snap.players[0].anim, 'run')
+  assert.equal(room.join({ readyState: 1, close() {}, send() {} }, { id: 'x', name: 'No', verified: false }), null)
   assert.equal(room.leave(socket), true)
   assert.equal(room.snapshot().players.length, 0)
 })
 
-test('two guests see each other on the grounds', async () => {
+test('a guest cannot join or appear on the grounds', async () => {
   const presence = await startPresence(0)
-  const ada = new WebSocket(presence.url)
-  const bea = new WebSocket(presence.url)
+  const socket = new WebSocket(presence.url)
   try {
-    await Promise.all([opened(ada), opened(bea)])
-    const welcomePromise = once(ada, (msg) => msg.t === 'welcome')
-    ada.send(JSON.stringify({ t: 'join', name: 'Ada', guest: true }))
-    bea.send(JSON.stringify({ t: 'join', name: 'Bea', guest: true }))
-    const welcome = await welcomePromise
-    assert.equal(welcome.name, 'Ada')
-    assert.equal(welcome.guest, true)
-    const seenPromise = once(
-      bea,
-      (msg) => msg.t === 'snapshot' && msg.players.some((player) => player.name === 'Ada' && player.zone === 'Fountain Court'),
-    )
-    ada.send(JSON.stringify({ t: 'state', x: 4, y: 1, z: 30, yaw: 0.4, anim: 'walk', zone: 'Fountain Court' }))
-    const seen = await seenPromise
-    assert.equal(seen.players.some((player) => player.name === 'Bea'), true)
+    await opened(socket)
+    const errorPromise = once(socket, (item) => item.t === 'auth_error')
+    socket.send(JSON.stringify({ t: 'join', name: 'Guest', guest: true }))
+    const msg = await errorPromise
+    assert.match(msg.message, /sign in/i)
+    assert.equal(presence.room.count(), 0)
   } finally {
-    ada.close()
-    bea.close()
+    socket.close()
     await presence.close()
   }
 })
@@ -84,7 +75,7 @@ test('a bad family token does not enter as that member', async () => {
     const errorPromise = once(socket, (item) => item.t === 'auth_error')
     socket.send(JSON.stringify({ t: 'join', name: 'Pat', token: 'nope', guest: false }))
     const msg = await errorPromise
-    assert.match(msg.message, /sign-in/i)
+    assert.match(msg.message, /sign-in|sign in/i)
     assert.equal(presence.room.count(), 0)
   } finally {
     socket.close()

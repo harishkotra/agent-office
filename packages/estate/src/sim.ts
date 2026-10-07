@@ -38,7 +38,7 @@ export const sim = {
   name: 'Guest',
   id: '',
   color: '#e15a3a',
-  guest: true,
+  guest: false,
   status: 'offline' as 'offline' | 'connecting' | 'online',
   roster: [] as RosterEntry[],
   excludeBody: null as object | null,

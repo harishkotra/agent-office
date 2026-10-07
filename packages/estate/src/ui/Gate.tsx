@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import { signIn, FAMILY_ACCOUNT_URL, type Member } from '../auth'
-import { cleanName, colorFor } from '../family'
 
-export function Gate({ onEnter }: { onEnter: (member: Member) => void }) {
-  const [name, setName] = useState('')
+export function Gate({ onEnter, notice }: { onEnter: (member: Member) => void; notice?: string }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState(notice || '')
   const [busy, setBusy] = useState(false)
 
   return (
@@ -15,28 +13,8 @@ export function Gate({ onEnter }: { onEnter: (member: Member) => void }) {
         <p className="eyebrow">The McCowan Family Estate</p>
         <h1>Walk the grounds together</h1>
         <p className="lede">
-          A shared 3D estate for the family. Move like a platform game, see who else is here, and use the same sign-in as the family site.
+          Sign in with your family account. On mccowanestate.com this page uses the sign-in you already have. Only a living family member on the roster can walk in, and you will see the other signed-in members who are here.
         </p>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            const display = cleanName(name)
-            if (display === 'Guest' && !name.trim()) {
-              setError('Add the name your family should see.')
-              return
-            }
-            setError('')
-            onEnter({ id: `local-${crypto.randomUUID()}`, name: display, guest: true, color: colorFor(display) })
-          }}
-        >
-          <label>
-            Your name
-            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={40} autoComplete="nickname" />
-          </label>
-          <button className="btn" type="submit">
-            Enter as guest
-          </button>
-        </form>
         <form
           className="signin"
           onSubmit={async (event) => {
@@ -73,12 +51,12 @@ export function Gate({ onEnter }: { onEnter: (member: Member) => void }) {
             />
           </label>
           <button className="btn btn-solid" type="submit" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in with your family account'}
+            {busy ? 'Signing in…' : 'Sign in and enter'}
           </button>
         </form>
         {error ? <p className="error">{error}</p> : null}
         <p className="fine">
-          This is the same account as <a href={FAMILY_ACCOUNT_URL}>mccowanestate.com</a>. Once you are signed in there, the site can open these grounds and bring your session with it.
+          Same account as <a href={FAMILY_ACCOUNT_URL}>mccowanestate.com</a>. Family Manager keeps the living roster.
         </p>
         <ul className="controls">
           <li>WASD or arrows to walk</li>

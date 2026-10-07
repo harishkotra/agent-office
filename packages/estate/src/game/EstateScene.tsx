@@ -59,10 +59,20 @@ function SunFollow({
   return null
 }
 
-export function EstateScene({ member, onWelcome }: { member: Member; onWelcome: (member: Member) => void }) {
+export function EstateScene({
+  member,
+  admitted,
+  onWelcome,
+  onReject,
+}: {
+  member: Member
+  admitted: boolean
+  onWelcome: (member: Member) => void
+  onReject: (message: string) => void
+}) {
   const [physicsReady, setPhysicsReady] = useState(false)
   const [physicsError, setPhysicsError] = useState('')
-  usePresence(member, onWelcome)
+  usePresence(member, onWelcome, onReject)
 
   useEffect(() => {
     let live = true
@@ -80,9 +90,9 @@ export function EstateScene({ member, onWelcome }: { member: Member; onWelcome: 
 
   useEffect(() => {
     sim.name = member.name
-    sim.guest = member.guest
-    sim.color = member.color || colorFor(member.id || member.name)
-    if (!member.guest) sim.id = member.id
+    sim.guest = false
+    sim.color = member.color || colorFor(member.personId || member.name)
+    sim.id = member.personId
     const down = (event: KeyboardEvent) => {
       look.keys[event.code] = true
       if (event.code.startsWith('Arrow') || event.code === 'Space') event.preventDefault()
@@ -110,7 +120,9 @@ export function EstateScene({ member, onWelcome }: { member: Member; onWelcome: 
       window.removeEventListener('blur', clear)
       clear()
     }
-  }, [member.color, member.guest, member.id, member.name])
+  }, [member.color, member.id, member.name, member.personId])
+
+  if (!admitted) return null
 
   if (!physicsReady) {
     return <div className="physics-wait">{physicsError || 'Opening the grounds…'}</div>

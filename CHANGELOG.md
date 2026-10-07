@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.1] - 2026-10-07
+
+### Changed
+- The 3D estate admits only a live family-site session that matches one living `tree_people` row. Guests and anonymous sockets are refused.
+- Hop-in is a same-origin page (`/estate/` on mccowanestate.com). The grounds read the existing Supabase session and do not take a token from another origin.
+
 ## [0.1.0] - 2026-10-07
 
 ### Added

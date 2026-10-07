@@ -72,7 +72,6 @@ export function Hud() {
                 <strong>
                   {person.name}
                   {person.self ? ' (you)' : ''}
-                  {person.guest ? ' · guest' : ''}
                 </strong>
                 <em>{person.zone}</em>
               </span>

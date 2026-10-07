@@ -1,51 +1,65 @@
 import { useCallback, useEffect, useState } from 'react'
-import { announceReady, listenForSiteSession, restoreSession, type Member } from './auth'
+import { restoreSession, type Member } from './auth'
 import { EstateScene } from './game/EstateScene'
 import { Gate } from './ui/Gate'
 import { Hud } from './ui/Hud'
 import { colorFor } from './family'
 import { sim } from './sim'
 
+function Checking() {
+  return (
+    <main className="gate">
+      <section className="gate-card">
+        <p className="eyebrow">The McCowan Family Estate</p>
+        <h1>Checking the living roster…</h1>
+        <p className="lede">Your family sign-in is being matched to one living member before you step onto the grounds.</p>
+      </section>
+    </main>
+  )
+}
+
 export function App() {
   const [member, setMember] = useState<Member | null>(null)
+  const [admitted, setAdmitted] = useState(false)
+  const [notice, setNotice] = useState('')
   const [booting, setBooting] = useState(true)
 
   useEffect(() => {
-    announceReady()
-    const stop = listenForSiteSession((next) => {
-      sim.name = next.name
-      sim.color = next.color || colorFor(next.id)
-      sim.guest = false
-      sim.id = next.id
-      setMember(next)
-    })
     const timer = window.setTimeout(() => setBooting(false), 3500)
     restoreSession()
       .then((found) => {
         if (found) {
           sim.name = found.name
-          sim.color = colorFor(found.id)
+          sim.color = colorFor(found.personId)
           sim.guest = false
-          sim.id = found.id
+          sim.id = ''
           setMember(found)
         }
       })
-      .catch(() => {
-        // The gate still works if the family account service is unreachable.
+      .catch((error: unknown) => {
+        setNotice(error instanceof Error ? error.message : 'Sign in on the family site to walk the grounds.')
       })
       .finally(() => {
         window.clearTimeout(timer)
         setBooting(false)
       })
-    return stop
   }, [])
 
   const onWelcome = useCallback((next: Member) => {
     sim.name = next.name
-    sim.color = next.color || sim.color
-    sim.guest = next.guest
-    sim.id = next.id
-    setMember((prev) => (prev ? { ...prev, ...next, token: next.token || prev.token } : next))
+    sim.color = next.color || colorFor(next.personId)
+    sim.guest = false
+    sim.id = next.personId
+    setMember((prev) => (prev ? { ...prev, ...next, token: prev.token } : next))
+    setAdmitted(true)
+  }, [])
+
+  const onReject = useCallback((message: string) => {
+    sim.id = ''
+    sim.roster = []
+    setAdmitted(false)
+    setMember(null)
+    setNotice(message)
   }, [])
 
   if (booting && !member) {
@@ -59,12 +73,27 @@ export function App() {
     )
   }
 
-  if (!member) return <Gate onEnter={(next) => setMember(next)} />
+  if (!member) {
+    return (
+      <Gate
+        notice={notice}
+        onEnter={(next) => {
+          setNotice('')
+          setAdmitted(false)
+          sim.name = next.name
+          sim.color = colorFor(next.personId)
+          sim.guest = false
+          sim.id = ''
+          setMember(next)
+        }}
+      />
+    )
+  }
 
   return (
-    <div className="game">
-      <EstateScene member={member} onWelcome={onWelcome} />
-      <Hud />
+    <div className={admitted ? 'game' : undefined}>
+      <EstateScene member={member} admitted={admitted} onWelcome={onWelcome} onReject={onReject} />
+      {admitted ? <Hud /> : <Checking />}
     </div>
   )
 }

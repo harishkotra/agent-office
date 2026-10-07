@@ -1,8 +1,7 @@
 import http from 'node:http'
-import { randomUUID } from 'node:crypto'
 import { WebSocketServer } from 'ws'
 import { EstateRoom } from './room.js'
-import { cleanName } from './names.js'
+import { rosterMessage } from './living.js'
 import { verifyFamilyToken } from './verify.js'
 
 const MAX_PLAYERS = 40
@@ -20,29 +19,35 @@ function broadcast(wss, message) {
 }
 
 async function acceptJoin(room, socket, msg) {
+  if (msg.guest === true || typeof msg.token !== 'string') {
+    send(socket, { t: 'auth_error', message: rosterMessage('signin') })
+    return null
+  }
   if (room.count() >= MAX_PLAYERS && !room.bySocket.has(socket)) {
     send(socket, { t: 'auth_error', message: 'The grounds are full right now.' })
     return null
   }
-  let verified = null
-  if (msg.token) verified = await verifyFamilyToken(msg.token)
-  if (msg.token && !verified && msg.guest !== true) {
-    send(socket, {
-      t: 'auth_error',
-      message: 'Family sign-in could not be checked. Enter as a guest or try again.',
-    })
+  const verified = await verifyFamilyToken(msg.token)
+  if (!verified || verified.error || !verified.personId) {
+    send(socket, { t: 'auth_error', message: verified?.error || rosterMessage('auth') })
     return null
   }
-  const id = verified?.id || `guest_${randomUUID()}`
-  const name = verified?.name || cleanName(msg.name)
-  const player = room.join(socket, { id, name, verified: !!verified })
+  const player = room.join(socket, {
+    id: verified.personId,
+    name: verified.name,
+    verified: true,
+    userId: verified.id,
+  })
+  if (!player) {
+    send(socket, { t: 'auth_error', message: rosterMessage('signin') })
+    return null
+  }
   send(socket, {
     t: 'welcome',
     id: player.id,
     name: player.name,
     color: player.color,
-    guest: player.guest,
-    verified: player.verified,
+    verified: true,
   })
   return player
 }

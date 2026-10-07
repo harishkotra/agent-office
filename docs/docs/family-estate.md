@@ -13,35 +13,37 @@ npm run estate
 - Presence: ws://127.0.0.1:8787
 - Health: http://127.0.0.1:8787/health
 
+Sign in with a family account. There is no guest entry.
+
 ## Controls
 
-Walk with WASD or the arrow keys. The direction is relative to the camera, the way a 3D platform game works. Shift runs. Space jumps, and jumping again just after you land chains a higher second jump and then a third. Ctrl or C dives. Drag the mouse, or hold Q and E, to look. R returns you to the front gate. Esc releases the mouse.
+Walk with WASD or the arrow keys. The direction is relative to the camera. Shift runs. Space jumps, and jumping again just after you land chains a higher second jump and then a third. Ctrl or C dives. Drag the mouse, or hold Q and E, to look. R returns you to the front gate. Esc releases the mouse.
 
-## Accounts
+## Who can walk in
 
-Sign-in uses the same Supabase project as [mccowanestate.com](https://mccowanestate.com). A signed-in member is shown by their profile name. Guests pick a display name and are marked guest on the roster.
+The presence server accepts a join only with a live Supabase access token from the same project as [mccowanestate.com](https://mccowanestate.com). It then reads `tree_people` with that token and admits the walker only when the account matches exactly one living person.
 
-The presence server checks an access token with Supabase before it trusts a name. A rejected token does not enter as that member.
+Living uses the same check as the family site directory: records `evelyn` and `vivian` are not living, and a role that says passed is not living. The rows themselves belong to Family Manager. This repo does not keep its own roster.
 
-## Embedding on the family site
+Match order:
 
-Host the built client (`npm run build --workspace=@agent-office/estate`) and the presence server together, or set `VITE_PRESENCE_URL` at build time.
+1. The account email equals one `tree_people.email`.
+2. Otherwise the profile name equals one living `tree_people.name`.
 
-From a signed-in page on an allowed origin, send the session into the frame:
+No match, a passed match, or more than one match is refused. The name on the grounds is the roster name. One living member is one walker.
 
-```js
-frame.contentWindow.postMessage({
-  type: 'mccowan-estate:session',
-  accessToken: session.access_token,
-  refreshToken: session.refresh_token
-}, estateOrigin)
+## Same-origin hop-in
+
+Host the built page on the family site:
+
+```bash
+npm run build --workspace=@agent-office/estate
 ```
 
-Listen for:
+Copy `packages/estate/dist` to `estate/` on mccowanestate.com so the page is `https://mccowanestate.com/estate/`. Link it from the signed-in site. Do not iframe a different origin and do not post the access token across windows.
 
-- `mccowan-estate:ready` when the grounds can take a session
-- `mccowan-estate:presence` with `players`: `id`, `name`, `zone`, `x`, `y`, `z`, `guest`
+The estate client uses the same Supabase URL and anon key as the site, with the default auth storage key. On that origin, `getSession()` is the sign-in the member already completed.
 
-Allowed parent origins: `https://mccowanestate.com`, `https://www.mccowanestate.com`, `https://jerichothewall.github.io`, and localhost.
+Set `VITE_PRESENCE_URL` to the `wss://` presence server before the production build. The page sends only that session token over the websocket. The server checks it again before anyone is added to the roster.
 
 Zones include the Great Hall, both wings, the porch, fountain court, pool, gazebo, chapel garden, pond, orchard, hedge garden, front gate, and the outer lawns.

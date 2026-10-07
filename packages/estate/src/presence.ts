@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { Anim } from './movement'
-import { currentToken, postPresence, type Member } from './auth'
+import { currentToken, type Member } from './auth'
 import { colorFor, presenceUrl } from './family'
 import { sim, type RosterEntry } from './sim'
 
@@ -8,7 +8,6 @@ export type RemoteBody = {
   id: string
   name: string
   color: string
-  guest: boolean
   x: number
   y: number
   z: number
@@ -30,7 +29,6 @@ type Welcome = {
   id: string
   name: string
   color: string
-  guest: boolean
 }
 
 type Snapshot = {
@@ -38,7 +36,6 @@ type Snapshot = {
   players: {
     id: string
     name: string
-    guest: boolean
     color: string
     x: number
     y: number
@@ -56,7 +53,7 @@ function publishRoster() {
       id: sim.id,
       name: sim.name,
       zone: sim.zone,
-      guest: sim.guest,
+      guest: false,
       self: true,
       color: sim.color,
       x: sim.x,
@@ -70,7 +67,7 @@ function publishRoster() {
       id: player.id,
       name: player.name,
       zone: player.zone,
-      guest: player.guest,
+      guest: false,
       self: false,
       color: player.color,
       x: player.x,
@@ -98,7 +95,6 @@ function applySnapshot(message: Snapshot) {
       existing.zone = player.zone
       existing.name = player.name
       existing.color = player.color
-      existing.guest = player.guest
     } else {
       net.remotes.set(player.id, {
         ...player,
@@ -115,11 +111,13 @@ function applySnapshot(message: Snapshot) {
   publishRoster()
 }
 
-export function usePresence(member: Member, onWelcome: (member: Member) => void) {
+export function usePresence(member: Member, onWelcome: (member: Member) => void, onReject?: (message: string) => void) {
   const memberRef = useRef(member)
   const welcomeRef = useRef(onWelcome)
+  const rejectRef = useRef(onReject)
   memberRef.current = member
   welcomeRef.current = onWelcome
+  rejectRef.current = onReject
 
   useEffect(() => {
     let socket: WebSocket | null = null
@@ -129,9 +127,9 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void)
     let presenceTimer = 0
     const person = memberRef.current
     sim.name = person.name
-    sim.guest = person.guest
-    sim.color = person.color || colorFor(person.id || person.name)
-    sim.id = person.guest ? '' : person.id
+    sim.guest = false
+    sim.color = person.color || colorFor(person.personId || person.name)
+    sim.id = ''
 
     const sendState = () => {
       if (!socket || socket.readyState !== WebSocket.OPEN || !sim.id) return
@@ -151,9 +149,11 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void)
     const connect = async () => {
       if (stopped) return
       sim.status = 'connecting'
-      const personNow = memberRef.current
-      let token = personNow.token
-      if (!personNow.guest) token = (await currentToken()) || personNow.token
+      const token = (await currentToken()) || memberRef.current.token
+      if (!token) {
+        rejectRef.current?.('Sign in on the family site to walk the grounds.')
+        return
+      }
       const ws = new WebSocket(presenceUrl())
       socket = ws
       ws.onopen = () => {
@@ -162,8 +162,6 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void)
         ws.send(
           JSON.stringify({
             t: 'join',
-            name: memberRef.current.name,
-            guest: memberRef.current.guest,
             token,
           }),
         )
@@ -181,11 +179,11 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void)
           sim.id = welcome.id
           sim.name = welcome.name
           sim.color = welcome.color
-          sim.guest = welcome.guest
+          sim.guest = false
           welcomeRef.current({
             id: welcome.id,
+            personId: welcome.id,
             name: welcome.name,
-            guest: welcome.guest,
             token,
             color: welcome.color,
           })
@@ -193,7 +191,10 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void)
         } else if (message.t === 'snapshot') {
           applySnapshot(message as Snapshot)
         } else if (message.t === 'auth_error') {
+          stopped = true
           sim.status = 'offline'
+          rejectRef.current?.(message.message || 'Sign in on the family site to walk the grounds.')
+          ws.close()
         }
       }
       ws.onclose = () => {
@@ -209,20 +210,7 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void)
 
     void connect()
     sendTimer = window.setInterval(sendState, 80)
-    presenceTimer = window.setInterval(() => {
-      publishRoster()
-        postPresence(
-        sim.roster.map((player) => ({
-          id: player.id,
-          name: player.name,
-          zone: player.zone,
-          x: player.x,
-          y: player.y,
-          z: player.z,
-          guest: player.guest,
-        })),
-      )
-    }, 1000)
+    presenceTimer = window.setInterval(publishRoster, 1000)
 
     return () => {
       stopped = true
@@ -233,5 +221,5 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void)
       sim.roster = []
       sim.status = 'offline'
     }
-  }, [member.guest, member.token])
+  }, [member.token])
 }

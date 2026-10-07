@@ -1,19 +1,12 @@
 import { createClient, type Session } from '@supabase/supabase-js'
-import {
-  FAMILY_SITE,
-  SUPABASE_ANON_KEY,
-  SUPABASE_URL,
-  allowedOrigin,
-  cleanName,
-  formatMemberName,
-  parentOrigin,
-} from './family'
+import { FAMILY_SITE, SUPABASE_ANON_KEY, SUPABASE_URL } from './family'
+import { matchLiving, rosterMessage, type NameProfile, type RosterPerson } from './living'
 
 export type Member = {
   id: string
+  personId: string
   name: string
-  guest: boolean
-  token?: string
+  token: string
   color?: string
 }
 
@@ -26,31 +19,25 @@ function sb() {
 
 async function memberFromSession(session: Session): Promise<Member> {
   const user = session.user
-  const meta = (user.user_metadata || {}) as {
-    first_name?: string
-    last_name?: string
-    name_prefix?: string
-    name_suffix?: string
-  }
-  let name = formatMemberName(meta)
-  if (!name && user.email) name = user.email.split('@')[0] || ''
-  const { data } = await sb()
+  const meta = (user.user_metadata || {}) as NameProfile
+  const { data: profileRow } = await sb()
     .from('profiles')
-    .select('first_name,last_name,name_prefix,name_suffix')
+    .select('first_name,last_name,middle_name,second_last_name,name_prefix,name_suffix')
     .eq('id', user.id)
     .maybeSingle()
-  const profile = data as {
-    first_name?: string | null
-    last_name?: string | null
-    name_prefix?: string | null
-    name_suffix?: string | null
-  } | null
-  const full = formatMemberName(profile)
-  if (full) name = full
+  const profile = { ...meta, ...(profileRow as NameProfile | null) }
+  const { data: people, error } = await sb().from('tree_people').select('id,name,role,email')
+  if (error || !Array.isArray(people)) throw new Error(rosterMessage('roster'))
+  const match = matchLiving({
+    email: user.email,
+    profile,
+    people: people as RosterPerson[],
+  })
+  if (!match.person) throw new Error(rosterMessage(match.error))
   return {
-    id: user.id,
-    name: cleanName(name || 'Family'),
-    guest: false,
+    id: match.person.id,
+    personId: match.person.id,
+    name: match.person.name.trim(),
     token: session.access_token,
   }
 }
@@ -63,7 +50,7 @@ export async function restoreSession(): Promise<Member | null> {
 
 export async function signIn(email: string, password: string): Promise<Member> {
   const { data, error } = await sb().auth.signInWithPassword({ email: email.trim(), password })
-  if (error || !data.session) throw new Error(error?.message || 'Could not sign in')
+  if (error || !data.session) throw new Error(error?.message || rosterMessage('auth'))
   return memberFromSession(data.session)
 }
 
@@ -72,52 +59,5 @@ export async function currentToken(): Promise<string | undefined> {
   return data.session?.access_token
 }
 
-export function announceReady() {
-  const origin = parentOrigin()
-  if (!origin) return
-  window.parent.postMessage({ type: 'mccowan-estate:ready' }, origin)
-}
-
-export function postPresence(
-  players: { id: string; name: string; zone: string; x: number; y: number; z: number; guest: boolean }[],
-) {
-  const origin = parentOrigin()
-  if (!origin) return
-  window.parent.postMessage({ type: 'mccowan-estate:presence', players }, origin)
-}
-
-export function listenForSiteSession(onMember: (member: Member) => void) {
-  const onMessage = async (event: MessageEvent) => {
-    if (!allowedOrigin(event.origin)) return
-    const data = event.data as { type?: string; accessToken?: string; refreshToken?: string } | null
-    if (!data || data.type !== 'mccowan-estate:session' || typeof data.accessToken !== 'string') return
-    if (typeof data.refreshToken === 'string') {
-      const { error } = await sb().auth.setSession({
-        access_token: data.accessToken,
-        refresh_token: data.refreshToken,
-      })
-      if (error) return
-      const { data: sessionData } = await sb().auth.getSession()
-      if (sessionData.session) onMember(await memberFromSession(sessionData.session))
-      return
-    }
-    const { data: userData, error } = await sb().auth.getUser(data.accessToken)
-    if (error || !userData.user) return
-    const meta = (userData.user.user_metadata || {}) as {
-      first_name?: string
-      last_name?: string
-      name_prefix?: string
-      name_suffix?: string
-    }
-    onMember({
-      id: userData.user.id,
-      name: cleanName(formatMemberName(meta) || userData.user.email?.split('@')[0] || 'Family'),
-      guest: false,
-      token: data.accessToken,
-    })
-  }
-  window.addEventListener('message', onMessage)
-  return () => window.removeEventListener('message', onMessage)
-}
-
 export const FAMILY_ACCOUNT_URL = `${FAMILY_SITE}/account.html`
+export const FAMILY_ESTATE_PATH = '/estate/'

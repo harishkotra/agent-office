@@ -2,7 +2,7 @@
 
 A huge walkable 3D estate for the McCowan family. Family members use the same sign-in as [mccowanestate.com](https://mccowanestate.com), walk the grounds with a keyboard, and see who else is here and which part of the estate they are standing in.
 
-The grounds are built to be embedded in the family website later. Until that page exists, run them from this repo.
+The grounds are a page on the family site, at `/estate/` on the same origin as [mccowanestate.com](https://mccowanestate.com). Sign in on the site, open the estate, and walk. The page reads that same sign-in. Guests are not admitted.
 
 ## Play
 
@@ -11,7 +11,7 @@ npm install
 npm run estate
 ```
 
-Open **http://localhost:5174**. Sign in with your family account, or enter as a guest. Open a second window to see another person on the grounds.
+Open **http://localhost:5174** and sign in with your family account. A second signed-in window shows up as another living member. There is no guest entry.
 
 | Key | Action |
 | --- | --- |
@@ -27,31 +27,13 @@ Movement is a blend of Super Mario 64 (acceleration, jump chains, camera-relativ
 
 ## Family site
 
-The estate accepts a Supabase session from the family site. A parent page can embed it and hand over the signed-in member:
+Hop-in is a normal page on the family site, not a frame on another origin. Same origin keeps the Supabase session in the browser, so the estate does not take a token through `postMessage`.
 
-```html
-<iframe id="estate" src="http://localhost:5174/" style="width:100%;height:80vh;border:0"></iframe>
-<script type="module">
-  const frame = document.getElementById('estate')
-  const { data } = await sb.auth.getSession()
-  frame.addEventListener('load', () => {
-    frame.contentWindow.postMessage({
-      type: 'mccowan-estate:session',
-      accessToken: data.session.access_token,
-      refreshToken: data.session.refresh_token
-    }, 'http://localhost:5174')
-  })
-  window.addEventListener('message', (event) => {
-    if (event.data?.type === 'mccowan-estate:presence') {
-      // event.data.players: { id, name, zone, x, y, z, guest }
-    }
-  })
-</script>
-```
+Family Manager hosts the built client at `https://mccowanestate.com/estate/` and links it for signed-in members. The build uses relative asset paths (`base: './'`). Set `VITE_PRESENCE_URL` to the presence websocket before building. See [docs/docs/family-estate.md](docs/docs/family-estate.md).
 
-The frame replies with `mccowan-estate:ready` and, about once a second, `mccowan-estate:presence`. Accepted parent origins are `https://mccowanestate.com`, `https://www.mccowanestate.com`, `https://jerichothewall.github.io`, and localhost. See [docs/docs/family-estate.md](docs/docs/family-estate.md).
+A walker is created only after the presence server checks the live session and matches it to one living `tree_people` row (the roster Family Manager keeps). A guest, an anonymous socket, or an account that is not on that roster never appears.
 
-`npm run estate` starts the presence server on port **8787** and the 3D client on port **5174**. Build the client with `npm run build --workspace=@agent-office/estate`. Point a production host at the presence websocket with `VITE_PRESENCE_URL` or `?ws=`.
+`npm run estate` starts the presence server on port **8787** and the 3D client on port **5174**. Build the client with `npm run build --workspace=@agent-office/estate`.
 
 ---
 

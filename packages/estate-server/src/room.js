@@ -7,6 +7,7 @@ export class EstateRoom {
   }
 
   join(socket, info) {
+    if (!info || info.verified !== true || !info.id) return null
     const existing = this.players.get(info.id)
     if (existing && existing.socket !== socket) {
       this.bySocket.delete(existing.socket)
@@ -19,8 +20,7 @@ export class EstateRoom {
     const player = {
       id: info.id,
       name: cleanName(info.name),
-      guest: !info.verified,
-      verified: !!info.verified,
+      verified: true,
       color: colorFor(info.id),
       x: 0,
       y: 0.82,
@@ -64,7 +64,6 @@ export class EstateRoom {
       players: [...this.players.values()].map((player) => ({
         id: player.id,
         name: player.name,
-        guest: player.guest,
         color: player.color,
         x: Number(player.x.toFixed(3)),
         y: Number(player.y.toFixed(3)),
