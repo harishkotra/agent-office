@@ -11,7 +11,10 @@
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "dev": "npm run dev --workspaces --if-present",
-    "start": "sh -c 'npm run start --workspace=@agent-office/server & SERVER_PID=$!; npm run dev --workspace=@agent-office/ui; kill $SERVER_PID'"
+    "start": "sh -c 'npm run start --workspace=@agent-office/server & SERVER_PID=$!; npm run dev --workspace=@agent-office/ui; kill $SERVER_PID'",
+    "estate": "sh -c 'npm run start --workspace=@agent-office/estate-server & SERVER_PID=$!; trap \"kill $SERVER_PID\" EXIT; npm run dev --workspace=@agent-office/estate'",
+    "estate:server": "npm run start --workspace=@agent-office/estate-server",
+    "estate:client": "npm run dev --workspace=@agent-office/estate"
   },
   "devDependencies": {
     "typescript": "^5.4.2",

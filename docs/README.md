@@ -12,6 +12,7 @@ Welcome to the AgentOffice docs. Start here to learn how to set up, customize, a
 | [Tools Reference](docs/tools.md) | Built-in tools and how to add custom ones |
 | [Deployment](docs/deployment.md) | Docker, cloud, and production guide |
 | [API Reference](docs/api-reference.md) | WebSocket events, state schema, and database tables |
+| [Family Estate](docs/family-estate.md) | 3D grounds, controls, and embedding on the family site |
 
 ## 📂 Examples
 
