@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.0] - 2026-10-07
+
+### Added
+- Walkable 3D McCowan Family Estate (`packages/estate`) with keyboard controls in the style of Super Mario 64, Fall Guys, and Gang Beasts: camera-relative walk and run, jump chains, dive, and a wobbly bean character.
+- Live presence server (`packages/estate-server`) so family members on the grounds can see each other and which part of the estate they are in.
+- Family-site sign-in bridge using the same accounts as mccowanestate.com, plus a `postMessage` session the website can pass into an embedded frame.
+
 ## [0.0.2] - 2026-04-13
 
 ### Added
