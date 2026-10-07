@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Sky } from '@react-three/drei'
 import { Physics } from '@react-three/rapier'
@@ -11,6 +11,7 @@ import { CameraRig } from './CameraRig'
 import { LocalPlayer } from './Player'
 import { RemotePlayers } from './Remotes'
 import { EstateWorld } from './world'
+import { initPhysics } from '../physics'
 
 function Sun() {
   const light = useRef<DirectionalLight>(null)
@@ -59,7 +60,23 @@ function SunFollow({
 }
 
 export function EstateScene({ member, onWelcome }: { member: Member; onWelcome: (member: Member) => void }) {
+  const [physicsReady, setPhysicsReady] = useState(false)
+  const [physicsError, setPhysicsError] = useState('')
   usePresence(member, onWelcome)
+
+  useEffect(() => {
+    let live = true
+    initPhysics()
+      .then(() => {
+        if (live) setPhysicsReady(true)
+      })
+      .catch((error: unknown) => {
+        if (live) setPhysicsError(error instanceof Error ? error.message : 'Physics could not start')
+      })
+    return () => {
+      live = false
+    }
+  }, [])
 
   useEffect(() => {
     sim.name = member.name
@@ -94,6 +111,10 @@ export function EstateScene({ member, onWelcome }: { member: Member; onWelcome: 
       clear()
     }
   }, [member.color, member.guest, member.id, member.name])
+
+  if (!physicsReady) {
+    return <div className="physics-wait">{physicsError || 'Opening the grounds…'}</div>
+  }
 
   return (
     <Canvas

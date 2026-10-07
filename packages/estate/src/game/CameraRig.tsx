@@ -49,7 +49,7 @@ export function CameraRig() {
     pos.current.z += (aimZ - pos.current.z) * blend
     camera.position.copy(pos.current)
     camera.lookAt(sim.x, lookY, sim.z)
-  }, 1)
+  })
 
   return null
 }

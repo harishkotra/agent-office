@@ -90,11 +90,20 @@ input {
 
 .game { height: 100%; position: relative; }
 
-.game canvas { display: block; width: 100%; height: 100%; }
+.physics-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #f7f1e6;
+  font-size: 22px;
+}
+
+.game > canvas { display: block; width: 100%; height: 100%; }
 
 .hud { position: absolute; inset: 0; pointer-events: none; }
 
-.panel, .minimap, .hint, .zone { pointer-events: auto; }
+.panel, .minimap, .hint, .zone { pointer-events: auto; z-index: 2; }
 
 .panel {
   position: absolute;
@@ -146,13 +155,17 @@ input {
 
 .hint {
   position: absolute;
-  left: 16px;
-  right: 16px;
+  left: 50%;
   bottom: 12px;
+  transform: translateX(-50%);
   margin: 0;
+  width: max-content;
+  max-width: calc(100% - 32px);
   text-align: center;
   color: #f7f1e6;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  background: rgba(20, 32, 22, 0.62);
+  border-radius: 999px;
+  padding: 6px 12px;
   font-size: 13px;
   pointer-events: none;
 }

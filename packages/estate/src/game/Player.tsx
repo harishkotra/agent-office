@@ -121,7 +121,7 @@ export function LocalPlayer({ name }: { name: string }) {
     pose.current.squash = nextMove.squash
     pose.current.lean = sim.lean
     if (facing.current) facing.current.rotation.y = sim.facing
-  }, 2)
+  })
 
   return (
     <RigidBody

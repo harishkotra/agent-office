@@ -213,7 +213,7 @@ function GateSign() {
     return texture
   }, [])
   return (
-    <mesh position={[0, 4.55, MARK.gateZ + 0.72]}>
+    <mesh position={[0, 6.35, MARK.gateZ + 0.72]}>
       <planeGeometry args={[8.4, 1.7]} />
       <meshBasicMaterial map={map} toneMapped={false} />
     </mesh>
@@ -326,9 +326,9 @@ export function EstateWorld() {
       <HedgeGarden />
       <Trees />
       <GateSign />
-      <Column position={[-6.4, 2.5, MARK.gateZ]} height={5} radius={0.72} color={STONE} />
-      <Column position={[6.4, 2.5, MARK.gateZ]} height={5} radius={0.72} color={STONE} />
-      <Solid position={[0, 4.7, MARK.gateZ]} size={[14.2, 0.55, 1.15]} color={STONE} />
+      <Column position={[-6.4, 3.2, MARK.gateZ]} height={6.4} radius={0.72} color={STONE} />
+      <Column position={[6.4, 3.2, MARK.gateZ]} height={6.4} radius={0.72} color={STONE} />
+      <Solid position={[0, 6.35, MARK.gateZ]} size={[14.2, 0.5, 1.15]} color={STONE} />
 
       {lamps.map(([x, z]) => (
         <group key={`lamp-${x}-${z}`} position={[x, 0, z]}>
