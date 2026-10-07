@@ -170,6 +170,92 @@ input {
   pointer-events: none;
 }
 
+.cue, .prompt, .feedback {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  color: #f7f1e6;
+  background: rgba(20, 32, 22, 0.78);
+  border-radius: 999px;
+  padding: 8px 14px;
+  z-index: 3;
+}
+
+.prompt { top: 18%; font-size: 1.25em; }
+.feedback { top: 26%; }
+.cue { top: 72px; max-width: min(640px, calc(100% - 32px)); text-align: center; }
+
+.menu-launch {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}
+
+.menu-launch button, .pause-card button, .travel-list button {
+  pointer-events: auto;
+}
+
+.pause-back {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 22, 16, 0.72);
+  display: grid;
+  place-items: center;
+  z-index: 6;
+  pointer-events: auto;
+}
+
+.pause-card {
+  width: min(560px, calc(100% - 32px));
+  max-height: min(80vh, 720px);
+  overflow: auto;
+  background: #f7f1e6;
+  color: #1d261c;
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.key-list, .travel-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.key-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.pause-card fieldset, .pause-card label { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.directory-list { display: grid; gap: 12px; }
+.swatch { display: grid; place-items: center; width: 22px; height: 22px; color: #1c241c; font-size: 10px; font-weight: 700; }
+
+.touch {
+  display: none;
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 64px;
+  justify-content: space-between;
+  align-items: end;
+  gap: 8px;
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.stick {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(247, 241, 230, 0.35);
+  touch-action: none;
+}
+
+html[data-font="small"] { --ui: 14px; }
+html[data-font="medium"] { --ui: 16px; }
+html[data-font="large"] { --ui: 20px; }
+.hud, .pause-card { font-size: var(--ui, 16px); }
+html[data-motion="reduce"] .zone { animation: none; }
+
+@media (pointer: coarse) {
+  .touch { display: flex; }
+}
+
 @keyframes rise {
   from { transform: translateX(-50%) translateY(6px); opacity: 0; }
   to { transform: translateX(-50%) translateY(0); opacity: 1; }

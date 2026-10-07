@@ -2,9 +2,10 @@ export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'fall' | 'dive'
 
 export const WALK_SPEED = 3.45
 export const RUN_SPEED = 7.85
-export const GROUND_ACCEL = 48
+export const GROUND_ACCEL = 50
+export const STOP_ACCEL = 72
 export const AIR_ACCEL = 14
-export const FRICTION = 16
+export const FRICTION = STOP_ACCEL
 export const GRAVITY = 26
 export const FALL_GRAVITY = 38
 export const JUMP_V = [8.6, 10.4, 12.6] as const
@@ -153,6 +154,54 @@ export function wishFromKeys(yaw: number, forward: number, strafe: number): { x:
   return { x, z }
 }
 
+function steer(state: MoveState, tx: number, tz: number, maxDelta: number, stop: boolean) {
+  if (stop && !state.grounded) return
+  let dx = tx - state.vx
+  let dz = tz - state.vz
+  const delta = Math.hypot(dx, dz)
+  if (delta <= maxDelta || delta < 1e-6) {
+    state.vx = tx
+    state.vz = tz
+    return
+  }
+  state.vx += (dx / delta) * maxDelta
+  state.vz += (dz / delta) * maxDelta
+}
+
+export function smoothYaw(current: number, target: number, dt: number): number {
+  let delta = target - current
+  while (delta > Math.PI) delta -= Math.PI * 2
+  while (delta < -Math.PI) delta += Math.PI * 2
+  const blend = 1 - Math.exp(-10 * Math.max(dt, 0))
+  return current + delta * blend
+}
+
+export function clipVelocity(
+  vx: number,
+  vy: number,
+  vz: number,
+  desired: { x: number; y: number; z: number },
+  moved: { x: number; y: number; z: number },
+): { vx: number; vy: number; vz: number } {
+  let nx = vx
+  let ny = vy
+  let nz = vz
+  if (desired.y > 0.02 && moved.y < desired.y * 0.35) ny = Math.min(ny, 0)
+  const wanted = Math.hypot(desired.x, desired.z)
+  const got = Math.hypot(moved.x, moved.z)
+  if (wanted > 0.002 && got < wanted * 0.45) {
+    if (got < 0.001) {
+      nx = 0
+      nz = 0
+    } else {
+      const scale = got / wanted
+      nx *= scale
+      nz *= scale
+    }
+  }
+  return { vx: nx, vy: ny, vz: nz }
+}
+
 function approach(current: number, target: number, maxDelta: number): number {
   const delta = target - current
   if (Math.abs(delta) <= maxDelta) return target
@@ -229,22 +278,8 @@ export function stepMove(prev: MoveState, input: MoveInput, groundedNow: boolean
 
   const target = input.run ? RUN_SPEED : WALK_SPEED
   if (!diving) {
-    if (wishLen > 0.01) {
-      const accel = (groundedNow && !jumped ? GROUND_ACCEL : AIR_ACCEL) * dt
-      s.vx = approach(s.vx, wx * target, accel)
-      s.vz = approach(s.vz, wz * target, accel)
-    } else if (groundedNow) {
-      const drop = FRICTION * dt
-      const h = Math.hypot(s.vx, s.vz)
-      if (h <= drop) {
-        s.vx = 0
-        s.vz = 0
-      } else {
-        const keep = (h - drop) / h
-        s.vx *= keep
-        s.vz *= keep
-      }
-    }
+    const rate = groundedNow && !jumped ? (wishLen > 0.01 ? GROUND_ACCEL : STOP_ACCEL) : AIR_ACCEL
+    steer(s, wx * (wishLen > 0.01 ? target : 0), wz * (wishLen > 0.01 ? target : 0), rate * dt, groundedNow && wishLen <= 0.01)
   } else if (groundedNow) {
     const drop = 22 * dt
     const h = Math.hypot(s.vx, s.vz)

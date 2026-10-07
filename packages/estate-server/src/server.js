@@ -36,7 +36,12 @@ async function acceptJoin(room, socket, msg) {
     id: verified.id,
     name: verified.name,
     verified: true,
+    tabId: msg.tabId,
   })
+  if (player && player.replaced) {
+    send(socket, { t: 'replaced', message: 'A newer tab is already on the grounds.' })
+    return null
+  }
   if (!player) {
     send(socket, { t: 'auth_error', message: accountMessage('signin') })
     return null

@@ -3,9 +3,14 @@ import { useFrame } from '@react-three/fiber'
 import { CapsuleCollider, RigidBody, useBeforePhysicsStep, useRapier, type RapierRigidBody } from '@react-three/rapier'
 import type { Group } from 'three'
 import { CharacterModel } from './CharacterModel'
-import { initialMove, notePress, PHYSICS_DT, stepMove, takePresses, wishFromKeys, type EdgeLatch, type MoveState } from '../movement'
+import { clipVelocity, initialMove, notePress, PHYSICS_DT, smoothYaw, stepMove, takePresses, wishFromKeys, type EdgeLatch, type MoveState } from '../movement'
 import { CAPSULE_CENTER, CAPSULE_HALF, CAPSULE_R, look, sim, type Pose } from '../sim'
 import { MARK, zoneAt } from '../zones'
+import { bindingLabel, held, settings } from '../settings'
+import { play, publishPlay, transit } from '../play'
+import { insideBuilding, nearbyTarget, promptText, stepThrough, syncInteriors } from '../buildings'
+import { announce, blip, directionWord, placeCue, stereoPan, walkerCue } from '../cues'
+import { touch } from '../touch'
 
 export function LocalPlayer({ name }: { name: string }) {
   const body = useRef<RapierRigidBody>(null)
@@ -16,6 +21,10 @@ export function LocalPlayer({ name }: { name: string }) {
   const latch = useRef<EdgeLatch>({ jump: false, dive: false })
   const resetLatch = useRef(false)
   const resetPrev = useRef(false)
+  const interactPrev = useRef(false)
+  const interactLatch = useRef(false)
+  const zoneSeen = useRef(sim.zone)
+  const near = useRef(new Set<string>())
   const { world } = useRapier()
   const controller = useRef<ReturnType<typeof world.createCharacterController> | null>(null)
 
@@ -40,16 +49,20 @@ export function LocalPlayer({ name }: { name: string }) {
     look.dx = 0
     look.dy = 0
     sim.camYaw -= lookX * 0.0022
-    if (look.keys.KeyQ) sim.camYaw += 1.8 * frame
-    if (look.keys.KeyE) sim.camYaw -= 1.8 * frame
+    if (held(look.keys, 'lookLeft') || touch.lookLeft) sim.camYaw += 1.8 * frame
+    if (held(look.keys, 'lookRight') || touch.lookRight) sim.camYaw -= 1.8 * frame
     sim.camPitch = Math.min(1.15, Math.max(0.18, sim.camPitch + lookY * 0.0022))
 
-    const jump = !!look.keys.Space
-    const dive = !!(look.keys.ControlLeft || look.keys.ControlRight || look.keys.KeyC)
+    const blocked = settings.paused || play.directory || play.travel
+    const jump = !blocked && (held(look.keys, 'jump') || touch.jump)
+    const dive = !blocked && (held(look.keys, 'dive') || touch.dive)
     notePress(latch.current, jump, dive, prev.current)
-    const reset = !!look.keys.KeyR
-    if (reset && !resetPrev.current) resetLatch.current = true
-    resetPrev.current = reset
+    const interact = !blocked && (held(look.keys, 'interact') || touch.interact)
+    if (interact && !interactPrev.current) interactLatch.current = true
+    interactPrev.current = interact
+    const resetDown = !settings.paused && held(look.keys, 'reset')
+    if (resetDown && !resetPrev.current) resetLatch.current = true
+    resetPrev.current = resetDown
   })
 
   useBeforePhysicsStep(() => {
@@ -60,14 +73,33 @@ export function LocalPlayer({ name }: { name: string }) {
     if (!collider) return
     sim.excludeBody = rb
 
-    const forward = (look.keys.KeyW || look.keys.ArrowUp ? 1 : 0) - (look.keys.KeyS || look.keys.ArrowDown ? 1 : 0)
-    const strafe = (look.keys.KeyD || look.keys.ArrowRight ? 1 : 0) - (look.keys.KeyA || look.keys.ArrowLeft ? 1 : 0)
+    const blocked = settings.paused || play.directory || play.travel
+    const forward = blocked ? 0 : (held(look.keys, 'forward') || touch.y > 0.25 ? 1 : 0) - (held(look.keys, 'back') || touch.y < -0.25 ? 1 : 0)
+    const strafe = blocked ? 0 : (held(look.keys, 'right') || touch.x > 0.25 ? 1 : 0) - (held(look.keys, 'left') || touch.x < -0.25 ? 1 : 0)
     const wish = wishFromKeys(sim.camYaw, forward, strafe)
     const presses = takePresses(latch.current)
     const reset = resetLatch.current
     resetLatch.current = false
+    const interact = interactLatch.current
+    interactLatch.current = false
 
     const here = rb.translation()
+    if (transit.x != null && transit.z != null) {
+      const next = { x: transit.x, y: here.y, z: transit.z }
+      const zone = transit.zone
+      transit.x = null
+      transit.z = null
+      transit.zone = ''
+      move.current = initialMove()
+      rb.setTranslation(next, true)
+      rb.setNextKinematicTranslation(next)
+      sim.x = next.x
+      sim.y = next.y
+      sim.z = next.z
+      sim.zone = zone || zoneAt(next.x, next.z)
+      announce(`Traveling to ${sim.zone}.`)
+      return
+    }
     if (reset || here.y < -2) {
       move.current = initialMove()
       const next = { x: MARK.spawn.x, y: CAPSULE_CENTER, z: MARK.spawn.z }
@@ -89,7 +121,7 @@ export function LocalPlayer({ name }: { name: string }) {
       {
         wishX: wish.x,
         wishZ: wish.z,
-        run: !!(look.keys.ShiftLeft || look.keys.ShiftRight),
+        run: !blocked && held(look.keys, 'run'),
         jumpPressed: presses.jumpPressed,
         jumpHeld: !!look.keys.Space,
         divePressed: presses.divePressed,
@@ -109,6 +141,11 @@ export function LocalPlayer({ name }: { name: string }) {
     const step = { x: nextMove.vx * PHYSICS_DT, y: stepY, z: nextMove.vz * PHYSICS_DT }
     ctrl.computeColliderMovement(collider, step)
     const moved = ctrl.computedMovement()
+    const clipped = clipVelocity(nextMove.vx, nextMove.vy, nextMove.vz, step, moved)
+    nextMove.vx = clipped.vx
+    nextMove.vy = clipped.vy
+    nextMove.vz = clipped.vz
+    move.current = nextMove
     const pos = rb.translation()
     const target = { x: pos.x + moved.x, y: pos.y + moved.y, z: pos.z + moved.z }
     rb.setNextKinematicTranslation(target)
@@ -117,8 +154,8 @@ export function LocalPlayer({ name }: { name: string }) {
     sim.y = target.y
     sim.z = target.z
     const speed = Math.hypot(nextMove.vx, nextMove.vz)
-    if (speed > 0.35) sim.facing = Math.atan2(nextMove.vx, nextMove.vz)
-    else if (forward !== 0 || strafe !== 0) sim.facing = Math.atan2(wish.x, wish.z)
+    const face = speed > 0.35 ? Math.atan2(nextMove.vx, nextMove.vz) : forward !== 0 || strafe !== 0 ? Math.atan2(wish.x, wish.z) : sim.facing
+    sim.facing = settings.reducedMotion ? face : smoothYaw(sim.facing, face, PHYSICS_DT)
     sim.anim = nextMove.anim
     sim.squash = nextMove.squash
     sim.lean = strafe * 0.28
@@ -127,6 +164,48 @@ export function LocalPlayer({ name }: { name: string }) {
     pose.current.squash = nextMove.squash
     pose.current.lean = sim.lean
     if (facing.current) facing.current.rotation.y = sim.facing
+
+    const targetHit = nearbyTarget(target.x, target.z, new Set(syncInteriors(target.x, target.z)))
+    if (interact && targetHit) {
+      if (targetHit.kind === 'bookshelf') {
+        publishPlay({ directory: true, feedback: 'Opening the family directory', feedbackUntil: Date.now() + 1600 })
+        document.exitPointerLock()
+        announce('Family directory open.')
+      } else if (targetHit.door) {
+        const step = stepThrough(target.x, target.z, targetHit.building, targetHit.door)
+        const leaving = insideBuilding(target.x, target.z, targetHit.building)
+        rb.setTranslation({ x: step.x, y: target.y, z: step.z }, true)
+        rb.setNextKinematicTranslation({ x: step.x, y: target.y, z: step.z })
+        sim.x = step.x
+        sim.z = step.z
+        const feedback = leaving ? 'Stepping outside' : `Entering ${targetHit.label}`
+        publishPlay({ feedback, feedbackUntil: Date.now() + 1600 })
+        announce(feedback)
+      }
+    }
+    const shown = targetHit ? { id: targetHit.id, kind: targetHit.kind, text: promptText(targetHit.kind, bindingLabel('interact'), targetHit.door ? insideBuilding(target.x, target.z, targetHit.building) : false) } : null
+    if ((shown?.id || '') !== (play.prompt?.id || '') || shown?.text !== play.prompt?.text) {
+      publishPlay({ prompt: shown })
+      if (shown) {
+        const dir = directionWord(sim.camYaw, target.x, target.z, shown.kind === 'bookshelf' ? targetHit!.x : targetHit!.x, targetHit!.z)
+        announce(placeCue(shown.kind, dir, targetHit!.label))
+        blip(stereoPan(sim.camYaw, target.x, target.z, targetHit!.x, targetHit!.z))
+      }
+    }
+    if (sim.zone !== zoneSeen.current) {
+      zoneSeen.current = sim.zone
+      announce(sim.zone)
+    }
+    if (sim.status === 'online') {
+      for (const person of sim.roster) {
+        if (person.self) continue
+        const dist = Math.hypot(person.x - target.x, person.z - target.z)
+        if (dist < 7 && !near.current.has(person.id)) {
+          near.current.add(person.id)
+          announce(walkerCue(person.name, directionWord(sim.camYaw, target.x, target.z, person.x, person.z)))
+        } else if (dist > 11) near.current.delete(person.id)
+      }
+    }
   })
 
   return (
@@ -139,7 +218,7 @@ export function LocalPlayer({ name }: { name: string }) {
     >
       <CapsuleCollider args={[CAPSULE_HALF, CAPSULE_R]} />
       <group ref={facing}>
-        <CharacterModel getColor={() => sim.color} pose={pose} name={name} />
+        <CharacterModel getColor={() => sim.color} pose={pose} name={name} markerId={sim.id || name} />
       </group>
     </RigidBody>
   )

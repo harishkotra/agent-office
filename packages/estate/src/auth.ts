@@ -45,6 +45,10 @@ export async function signIn(email: string, password: string): Promise<Member> {
   return memberFromSession(data.session)
 }
 
+export function familyClient() {
+  return sb()
+}
+
 export async function currentToken(): Promise<string | undefined> {
   const { data } = await sb().auth.getSession()
   return data.session?.access_token

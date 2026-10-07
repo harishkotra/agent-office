@@ -17,7 +17,7 @@ Sign in with a family account. There is no guest entry.
 
 ## Controls
 
-Walk with WASD or the arrow keys. The direction is relative to the camera. Shift runs. Space jumps, and jumping again just after you land chains a higher second jump and then a third. Ctrl or C dives. Drag the mouse, or hold Q and E, to look. R returns you to the front gate. Esc releases the mouse.
+Walk with WASD or the arrow keys. The direction is relative to the camera. Shift runs. Space jumps, and jumping again just after you land chains a higher second jump and then a third. C or V dives. F enters a door or opens the family directory. Drag the mouse, or hold Q and E, to look. R returns you to the front gate. Esc opens settings. On a phone, use the on-screen stick.
 
 ## Who can walk in
 

@@ -1,3 +1,5 @@
+import { homeZone } from './buildings'
+
 export const WORLD = {
   halfX: 140,
   halfZ: 120,
@@ -50,6 +52,8 @@ export const ZONES: ZoneRect[] = [
 ]
 
 export function zoneAt(x: number, z: number): string {
+  const home = homeZone(x, z)
+  if (home) return home
   for (const zone of ZONES) {
     if (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) return zone.name
   }

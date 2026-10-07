@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { PlayMenus } from './PlayMenus'
+import { markerColor, initials } from '../markers'
+import { settings } from '../settings'
 import { sim } from '../sim'
+
+function cssColor(value: string) {
+  return /^#[0-9a-f]{6}$/.test(value) ? value : markerColor(value || 'walker')
+}
 import { MARK, WORLD } from '../zones'
 
 function dot(x: number, z: number, size: number) {
@@ -46,7 +53,7 @@ export function Hud() {
       ctx.fillRect(pool.x - 6, pool.y - 4, 12, 8)
       for (const person of sim.roster) {
         const point = dot(person.x, person.z, size)
-        ctx.fillStyle = person.color
+        ctx.fillStyle = settings.colorblind ? markerColor(person.id) : cssColor(person.color)
         ctx.beginPath()
         ctx.arc(point.x, point.y, person.self ? 4.5 : 3.5, 0, Math.PI * 2)
         ctx.fill()
@@ -67,7 +74,9 @@ export function Hud() {
         <ul>
           {roster.map((person) => (
             <li key={person.id}>
-              <span className="swatch" style={{ background: person.color }} />
+              <span className="swatch" style={{ background: settings.colorblind ? markerColor(person.id) : cssColor(person.color) }}>
+                {initials(person.name)}
+              </span>
               <span>
                 <strong>
                   {person.name}
@@ -84,7 +93,8 @@ export function Hud() {
         {sim.zone}
       </div>
       <canvas ref={map} className="minimap" width={180} height={180} aria-label="Map of the estate" />
-      <p className="hint">WASD move · Shift run · Space jump · Ctrl dive · Q/E or drag look · R gate · Esc frees the mouse</p>
+      <p className="hint">WASD move · Shift run · Space jump · C or V dive · F interact · Q/E or drag look · R gate · Esc settings</p>
+      <PlayMenus />
     </div>
   )
 }
