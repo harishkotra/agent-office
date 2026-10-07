@@ -128,7 +128,7 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
     const person = memberRef.current
     sim.name = person.name
     sim.guest = false
-    sim.color = person.color || colorFor(person.personId || person.name)
+    sim.color = person.color || colorFor(person.id || person.name)
     sim.id = ''
 
     const sendState = () => {
@@ -182,7 +182,6 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
           sim.guest = false
           welcomeRef.current({
             id: welcome.id,
-            personId: welcome.id,
             name: welcome.name,
             token,
             color: welcome.color,

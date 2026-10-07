@@ -1,7 +1,7 @@
 import http from 'node:http'
 import { WebSocketServer } from 'ws'
 import { EstateRoom } from './room.js'
-import { rosterMessage } from './living.js'
+import { accountMessage } from './profile.js'
 import { verifyFamilyToken } from './verify.js'
 
 const MAX_PLAYERS = 40
@@ -20,7 +20,7 @@ function broadcast(wss, message) {
 
 async function acceptJoin(room, socket, msg) {
   if (msg.guest === true || typeof msg.token !== 'string') {
-    send(socket, { t: 'auth_error', message: rosterMessage('signin') })
+    send(socket, { t: 'auth_error', message: accountMessage('signin') })
     return null
   }
   if (room.count() >= MAX_PLAYERS && !room.bySocket.has(socket)) {
@@ -28,18 +28,17 @@ async function acceptJoin(room, socket, msg) {
     return null
   }
   const verified = await verifyFamilyToken(msg.token)
-  if (!verified || verified.error || !verified.personId) {
-    send(socket, { t: 'auth_error', message: verified?.error || rosterMessage('auth') })
+  if (!verified || verified.error || !verified.id) {
+    send(socket, { t: 'auth_error', message: verified?.error || accountMessage('auth') })
     return null
   }
   const player = room.join(socket, {
-    id: verified.personId,
+    id: verified.id,
     name: verified.name,
     verified: true,
-    userId: verified.id,
   })
   if (!player) {
-    send(socket, { t: 'auth_error', message: rosterMessage('signin') })
+    send(socket, { t: 'auth_error', message: accountMessage('signin') })
     return null
   }
   send(socket, {

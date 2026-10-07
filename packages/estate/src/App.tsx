@@ -11,8 +11,8 @@ function Checking() {
     <main className="gate">
       <section className="gate-card">
         <p className="eyebrow">The McCowan Family Estate</p>
-        <h1>Checking the living roster…</h1>
-        <p className="lede">Your family sign-in is being matched to one living member before you step onto the grounds.</p>
+        <h1>Checking your account…</h1>
+        <p className="lede">Your family sign-in has to match a site profile before you step onto the grounds.</p>
       </section>
     </main>
   )
@@ -30,7 +30,7 @@ export function App() {
       .then((found) => {
         if (found) {
           sim.name = found.name
-          sim.color = colorFor(found.personId)
+          sim.color = colorFor(found.id)
           sim.guest = false
           sim.id = ''
           setMember(found)
@@ -47,9 +47,9 @@ export function App() {
 
   const onWelcome = useCallback((next: Member) => {
     sim.name = next.name
-    sim.color = next.color || colorFor(next.personId)
+    sim.color = next.color || colorFor(next.id)
     sim.guest = false
-    sim.id = next.personId
+    sim.id = next.id
     setMember((prev) => (prev ? { ...prev, ...next, token: prev.token } : next))
     setAdmitted(true)
   }, [])
@@ -81,7 +81,7 @@ export function App() {
           setNotice('')
           setAdmitted(false)
           sim.name = next.name
-          sim.color = colorFor(next.personId)
+          sim.color = colorFor(next.id)
           sim.guest = false
           sim.id = ''
           setMember(next)

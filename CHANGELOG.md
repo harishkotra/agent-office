@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.3] - 2026-10-07
+
+### Changed
+- A walker is the signed-in site account. Admission requires a live Supabase session and that user's existing `profiles` row. The grounds name comes from the profile.
+- The family tree is not used to admit walkers or to choose their name.
+
 ## [0.1.2] - 2026-10-07
 
 ### Security

@@ -1,10 +1,9 @@
 import { createClient, type Session } from '@supabase/supabase-js'
 import { FAMILY_SITE, SUPABASE_ANON_KEY, SUPABASE_URL } from './family'
-import { matchLiving, rosterMessage, type RosterPerson } from './living'
+import { accountMessage, profileDisplayName, type ProfileName } from './profileName'
 
 export type Member = {
   id: string
-  personId: string
   name: string
   token: string
   color?: string
@@ -19,17 +18,17 @@ function sb() {
 
 async function memberFromSession(session: Session): Promise<Member> {
   const user = session.user
-  const { data: people, error } = await sb().from('tree_people').select('id,name,role,email')
-  if (error || !Array.isArray(people)) throw new Error(rosterMessage('roster'))
-  const match = matchLiving({
-    email: user.email,
-    people: people as RosterPerson[],
-  })
-  if (!match.person) throw new Error(rosterMessage(match.error))
+  const { data, error } = await sb()
+    .from('profiles')
+    .select('first_name,last_name,middle_name,second_last_name,name_prefix,name_suffix')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (error) throw new Error(accountMessage('profile'))
+  const name = profileDisplayName(data as ProfileName | null)
+  if (!data || !name) throw new Error(data ? accountMessage('name') : accountMessage('profile'))
   return {
-    id: match.person.id,
-    personId: match.person.id,
-    name: match.person.name.trim(),
+    id: user.id,
+    name,
     token: session.access_token,
   }
 }
@@ -42,7 +41,7 @@ export async function restoreSession(): Promise<Member | null> {
 
 export async function signIn(email: string, password: string): Promise<Member> {
   const { data, error } = await sb().auth.signInWithPassword({ email: email.trim(), password })
-  if (error || !data.session) throw new Error(error?.message || rosterMessage('auth'))
+  if (error || !data.session) throw new Error(error?.message || accountMessage('auth'))
   return memberFromSession(data.session)
 }
 

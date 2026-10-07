@@ -91,8 +91,8 @@ export function EstateScene({
   useEffect(() => {
     sim.name = member.name
     sim.guest = false
-    sim.color = member.color || colorFor(member.personId || member.name)
-    sim.id = member.personId
+    sim.color = member.color || colorFor(member.id || member.name)
+    sim.id = member.id
     const down = (event: KeyboardEvent) => {
       look.keys[event.code] = true
       if (event.code.startsWith('Arrow') || event.code === 'Space') event.preventDefault()
@@ -120,7 +120,7 @@ export function EstateScene({
       window.removeEventListener('blur', clear)
       clear()
     }
-  }, [member.color, member.id, member.name, member.personId])
+  }, [member.color, member.id, member.name])
 
   if (!admitted) return null
 

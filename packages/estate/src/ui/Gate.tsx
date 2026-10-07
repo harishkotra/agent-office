@@ -13,7 +13,7 @@ export function Gate({ onEnter, notice }: { onEnter: (member: Member) => void; n
         <p className="eyebrow">The McCowan Family Estate</p>
         <h1>Walk the grounds together</h1>
         <p className="lede">
-          Sign in with your family account. On mccowanestate.com this page uses the sign-in you already have. Only a living family member on the roster can walk in, and you will see the other signed-in members who are here.
+          Sign in with your family account. On mccowanestate.com this page uses the sign-in you already have. You appear under your profile name, and you see the other signed-in members who are here now.
         </p>
         <form
           className="signin"
@@ -56,7 +56,7 @@ export function Gate({ onEnter, notice }: { onEnter: (member: Member) => void; n
         </form>
         {error ? <p className="error">{error}</p> : null}
         <p className="fine">
-          Same account as <a href={FAMILY_ACCOUNT_URL}>mccowanestate.com</a>. Family Manager keeps the living roster.
+          Same account as <a href={FAMILY_ACCOUNT_URL}>mccowanestate.com</a>. You need a site profile to walk in.
         </p>
         <ul className="controls">
           <li>WASD or arrows to walk</li>

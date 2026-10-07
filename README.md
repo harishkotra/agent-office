@@ -31,7 +31,7 @@ Hop-in is a normal page on the family site, not a frame on another origin. Same 
 
 Family Manager hosts the built client at `https://mccowanestate.com/estate/` and links it for signed-in members. The build uses relative asset paths (`base: './'`). Set `VITE_PRESENCE_URL` to a websocket on that same host before building. A `?ws=` query cannot retarget it. See [docs/docs/family-estate.md](docs/docs/family-estate.md).
 
-A walker is created only after the presence server checks the live session and matches it to one living `tree_people` row (the roster Family Manager keeps). A guest, an anonymous socket, or an account that is not on that roster never appears.
+A walker is created only after the presence server checks the live session and finds that account's `profiles` row. The name on the grounds is the profile name. Guests and anonymous sockets never appear. The family tree is not used for admission.
 
 `npm run estate` starts the presence server on port **8787** and the 3D client on port **5174**. Build the client with `npm run build --workspace=@agent-office/estate`.
 

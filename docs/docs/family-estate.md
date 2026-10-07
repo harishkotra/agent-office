@@ -21,15 +21,9 @@ Walk with WASD or the arrow keys. The direction is relative to the camera. Shift
 
 ## Who can walk in
 
-The presence server accepts a join only with a live Supabase access token from the same project as [mccowanestate.com](https://mccowanestate.com). It then reads `tree_people` with that token and admits the walker only when the account matches exactly one living person.
+The presence server accepts a join only with a live Supabase access token from the same project as [mccowanestate.com](https://mccowanestate.com). It then reads that user's own `profiles` row. The walker is that account. The name on the grounds is the profile name.
 
-Living uses the same check as the family site directory: records `evelyn` and `vivian` are not living, and a role that says passed is not living. The rows themselves belong to Family Manager. This repo does not keep its own roster.
-
-The account email must equal one `tree_people.email`. That is the link Family Manager sets. A matching name is not enough, so a new account cannot walk as someone else.
-
-No email link, a memorial match, or more than one match is refused. The name on the grounds is the roster name. One living member is one walker.
-
-Memorial records stay off the grounds: Evelyn Rosborough, Lee Rosborough, Vivian McCowan, Sammy McCowan III, and Jeremiah Devon McCowan, along with any roster row whose role says passed.
+There is no guest entry, and the family tree is not used to decide who can walk. A session with no `profiles` row is refused. One account is one walker. Other people on the grounds are other signed-in accounts connected right now.
 
 ## Same-origin hop-in
 
