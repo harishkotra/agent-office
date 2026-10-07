@@ -1,13 +1,12 @@
 import * as RAPIER from '@dimforge/rapier3d-compat'
-import wasmUrl from '@dimforge/rapier3d-compat/rapier_wasm3d_bg.wasm?url'
 
 let ready: Promise<void> | null = null
 
-// rapier3d-compat 0.14 publishes a broken default wasm URL (`"<deleted>"`).
-// Pass the real file once; later init() calls from the physics view reuse it.
+// rapier3d-compat inlines its wasm. init() uses those bytes.
+// Do not also import rapier_wasm3d_bg.wasm; that file would ship and never load.
 export function initPhysics() {
   if (!ready) {
-    ready = (RAPIER.init as (module?: string) => Promise<void>)(wasmUrl).catch((error) => {
+    ready = RAPIER.init().catch((error: unknown) => {
       ready = null
       throw error
     })

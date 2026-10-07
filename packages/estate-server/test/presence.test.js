@@ -51,6 +51,22 @@ test('a room keeps the latest place for each person', () => {
   assert.equal(room.snapshot().players.length, 0)
 })
 
+test('the newest tab wins once and the older tab cannot kick it back', () => {
+  const room = new EstateRoom()
+  const first = { readyState: 1, closed: 0, close() { this.closed += 1 }, send() {} }
+  const second = { readyState: 1, closed: 0, close() { this.closed += 1 }, send() {} }
+  room.join(first, { id: 'abc', name: 'Ada', verified: true, tabId: 'tab-older-1111' })
+  room.join(second, { id: 'abc', name: 'Ada', verified: true, tabId: 'tab-newer-2222' })
+  const again = room.join(
+    { readyState: 1, close() {}, send() {} },
+    { id: 'abc', name: 'Ada', verified: true, tabId: 'tab-older-1111' },
+  )
+  assert.equal(again.replaced, true)
+  assert.equal(first.closed, 1)
+  assert.equal(second.closed, 0)
+  assert.equal(room.count(), 1)
+})
+
 test('a guest cannot join or appear on the grounds', async () => {
   const presence = await startPresence(0)
   const socket = new WebSocket(presence.url)

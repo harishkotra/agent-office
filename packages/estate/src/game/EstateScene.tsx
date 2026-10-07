@@ -5,6 +5,8 @@ import { Physics } from '@react-three/rapier'
 import { ACESFilmicToneMapping, SRGBColorSpace, type DirectionalLight, type Object3D } from 'three'
 import { usePresence } from '../presence'
 import { look, sim } from '../sim'
+import { setPaused, settings } from '../settings'
+import { play, publishPlay } from '../play'
 import type { Member } from '../auth'
 import { colorFor } from '../family'
 import { CameraRig } from './CameraRig'
@@ -12,6 +14,19 @@ import { LocalPlayer } from './Player'
 import { RemotePlayers } from './Remotes'
 import { EstateWorld } from './world'
 import { initPhysics } from '../physics'
+
+function coarseScreen() {
+  return window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820
+}
+
+export function webglOk() {
+  try {
+    const canvas = document.createElement('canvas')
+    return !!(canvas.getContext('webgl2') || canvas.getContext('webgl'))
+  } catch {
+    return false
+  }
+}
 
 function Sun() {
   const light = useRef<DirectionalLight>(null)
@@ -64,15 +79,17 @@ export function EstateScene({
   admitted,
   onWelcome,
   onReject,
+  onStatus,
 }: {
   member: Member
   admitted: boolean
   onWelcome: (member: Member) => void
   onReject: (message: string) => void
+  onStatus?: (status: 'connecting' | 'offline') => void
 }) {
   const [physicsReady, setPhysicsReady] = useState(false)
   const [physicsError, setPhysicsError] = useState('')
-  usePresence(member, onWelcome, onReject)
+  usePresence(member, onWelcome, onReject, onStatus)
 
   useEffect(() => {
     let live = true
@@ -94,6 +111,22 @@ export function EstateScene({
     sim.color = member.color || colorFor(member.id || member.name)
     sim.id = member.id
     const down = (event: KeyboardEvent) => {
+      if (event.code === 'Escape') {
+        if (play.directory) {
+          publishPlay({ directory: false })
+          return
+        }
+        if (play.travel) {
+          publishPlay({ travel: false })
+          return
+        }
+        const next = !settings.paused
+        setPaused(next)
+        if (next) document.exitPointerLock()
+        return
+      }
+      const typing = event.target instanceof HTMLElement && (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA')
+      if (typing || settings.paused || settings.listening || play.directory || play.travel) return
       look.keys[event.code] = true
       if (event.code.startsWith('Arrow') || event.code === 'Space') event.preventDefault()
     }
@@ -128,17 +161,26 @@ export function EstateScene({
     return <div className="physics-wait">{physicsError || 'Opening the grounds…'}</div>
   }
 
+  if (!webglOk()) {
+    return (
+      <div className="physics-wait">
+        <p>The 3D grounds could not start in this browser. Use Travel to… for a non-visual list of places.</p>
+      </div>
+    )
+  }
+
   return (
     <Canvas
-      shadows
-      dpr={[1, 1.6]}
+      shadows={!coarseScreen()}
+      dpr={coarseScreen() ? 1 : [1, 1.6]}
       camera={{ fov: 58, near: 0.08, far: 420, position: [0, 6, 90] }}
-      gl={{ antialias: true, powerPreference: 'high-performance' }}
+      gl={{ antialias: !coarseScreen(), powerPreference: coarseScreen() ? 'low-power' : 'high-performance' }}
       onCreated={({ gl }) => {
         gl.toneMapping = ACESFilmicToneMapping
         gl.toneMappingExposure = 1.05
         gl.outputColorSpace = SRGBColorSpace
         gl.domElement.addEventListener('pointerdown', () => {
+          if (settings.paused || play.directory || play.travel) return
           void gl.domElement.requestPointerLock()
         })
         gl.domElement.addEventListener('contextmenu', (event) => event.preventDefault())

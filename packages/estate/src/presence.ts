@@ -2,7 +2,18 @@ import { useEffect, useRef } from 'react'
 import type { Anim } from './movement'
 import { currentToken, type Member } from './auth'
 import { colorFor, presenceUrl } from './family'
+import { pushSample, type Track } from './netpose'
 import { sim, type RosterEntry } from './sim'
+
+const TAB_KEY = 'mccowan-estate-tab'
+
+function tabId() {
+  const existing = sessionStorage.getItem(TAB_KEY)
+  if (existing && /^[\w-]{8,64}$/.test(existing)) return existing
+  const next = crypto.randomUUID()
+  sessionStorage.setItem(TAB_KEY, next)
+  return next
+}
 
 export type RemoteBody = {
   id: string
@@ -14,10 +25,7 @@ export type RemoteBody = {
   yaw: number
   anim: Anim
   zone: string
-  rx: number
-  ry: number
-  rz: number
-  ryaw: number
+  track: Track
 }
 
 export const net = {
@@ -86,11 +94,9 @@ function applySnapshot(message: Snapshot) {
     if (player.id === sim.id) continue
     seen.add(player.id)
     const existing = net.remotes.get(player.id)
+    const sample = { x: player.x, y: player.y, z: player.z, yaw: player.yaw, t: performance.now() / 1000 }
     if (existing) {
-      existing.x = player.x
-      existing.y = player.y
-      existing.z = player.z
-      existing.yaw = player.yaw
+      existing.track = pushSample(existing.track, sample)
       existing.anim = player.anim
       existing.zone = player.zone
       existing.name = player.name
@@ -98,10 +104,7 @@ function applySnapshot(message: Snapshot) {
     } else {
       net.remotes.set(player.id, {
         ...player,
-        rx: player.x,
-        ry: player.y,
-        rz: player.z,
-        ryaw: player.yaw,
+        track: { previous: null, latest: sample },
       })
     }
   }
@@ -111,17 +114,26 @@ function applySnapshot(message: Snapshot) {
   publishRoster()
 }
 
-export function usePresence(member: Member, onWelcome: (member: Member) => void, onReject?: (message: string) => void) {
+export function usePresence(
+  member: Member,
+  onWelcome: (member: Member) => void,
+  onReject?: (message: string) => void,
+  onStatus?: (status: 'connecting' | 'offline') => void,
+) {
   const memberRef = useRef(member)
   const welcomeRef = useRef(onWelcome)
   const rejectRef = useRef(onReject)
+  const statusRef = useRef(onStatus)
   memberRef.current = member
   welcomeRef.current = onWelcome
   rejectRef.current = onReject
+  statusRef.current = onStatus
 
   useEffect(() => {
     let socket: WebSocket | null = null
     let stopped = false
+    let welcomed = false
+    let failed = false
     let delay = 600
     let sendTimer = 0
     let presenceTimer = 0
@@ -149,6 +161,7 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
     const connect = async () => {
       if (stopped) return
       sim.status = 'connecting'
+      if (!welcomed) statusRef.current?.(failed ? 'offline' : 'connecting')
       const token = (await currentToken()) || memberRef.current.token
       if (!token) {
         rejectRef.current?.('Sign in on the family site to walk the grounds.')
@@ -163,6 +176,7 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
           JSON.stringify({
             t: 'join',
             token,
+            tabId: tabId(),
           }),
         )
       }
@@ -176,6 +190,8 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
         if (!message) return
         if (message.t === 'welcome') {
           const welcome = message as Welcome
+          welcomed = true
+          failed = false
           sim.id = welcome.id
           sim.name = welcome.name
           sim.color = welcome.color
@@ -189,6 +205,10 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
           publishRoster()
         } else if (message.t === 'snapshot') {
           applySnapshot(message as Snapshot)
+        } else if (message.t === 'replaced') {
+          stopped = true
+          sim.status = 'offline'
+          ws.close()
         } else if (message.t === 'auth_error') {
           stopped = true
           sim.status = 'offline'
@@ -196,13 +216,25 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
           ws.close()
         }
       }
-      ws.onclose = () => {
-        if (stopped) return
+      ws.onclose = (event) => {
+        if (stopped || event.code === 4000) {
+          stopped = true
+          sim.status = 'offline'
+          return
+        }
         sim.status = 'offline'
+        if (!welcomed) {
+          failed = true
+          statusRef.current?.('offline')
+        }
         window.setTimeout(connect, delay)
         delay = Math.min(8000, delay * 2)
       }
       ws.onerror = () => {
+        if (!stopped && !welcomed) {
+          failed = true
+          statusRef.current?.('offline')
+        }
         ws.close()
       }
     }

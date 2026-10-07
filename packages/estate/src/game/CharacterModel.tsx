@@ -1,8 +1,10 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Pose } from '../sim'
 import { CAPSULE_CENTER } from '../sim'
+import { initials, markerColor } from '../markers'
+import { settings } from '../settings'
 
 function shade(hex: string, amount: number): string {
   const value = Number.parseInt(hex.slice(1), 16)
@@ -34,10 +36,12 @@ export function CharacterModel({
   getColor,
   pose,
   name,
+  markerId = '',
 }: {
   getColor: () => string
   pose: { current: Pose }
   name: string
+  markerId?: string
 }) {
   const visual = useRef<THREE.Group>(null)
   const armL = useRef<THREE.Group>(null)
@@ -46,6 +50,13 @@ export function CharacterModel({
   const belly = useRef<THREE.MeshStandardMaterial>(null)
   const hair = useRef<THREE.MeshStandardMaterial>(null)
   const map = useMemo(() => labelTexture(name), [name])
+  const mark = useMemo(() => labelTexture(initials(name)), [name])
+  useEffect(() => {
+    return () => {
+      map.dispose()
+      mark.dispose()
+    }
+  }, [map, mark])
   const width = Math.min(2.4, 0.9 + name.length * 0.07)
 
   useFrame(({ clock }) => {
@@ -54,6 +65,17 @@ export function CharacterModel({
     body.current?.color.set(color)
     belly.current?.color.set(shade(color, 28))
     hair.current?.color.set(shade(color, -28))
+    if (settings.reducedMotion) {
+      if (armL.current) armL.current.rotation.x = 0
+      if (armR.current) armR.current.rotation.x = 0
+      if (visual.current) {
+        visual.current.scale.set(1, 1, 1)
+        visual.current.rotation.z = sample.lean
+        visual.current.rotation.x = sample.anim === 'dive' ? 1.15 : 0
+        visual.current.position.y = 0
+      }
+      return
+    }
     const moving = sample.anim === 'walk' || sample.anim === 'run'
     const speed = sample.anim === 'run' ? 13 : moving ? 8.5 : 2.2
     const amp = moving ? 0.85 : 0.12
@@ -118,6 +140,9 @@ export function CharacterModel({
       </group>
       <sprite position={[0, 1.55, 0]} scale={[width, 0.42, 1]}>
         <spriteMaterial map={map} transparent depthWrite={false} />
+      </sprite>
+      <sprite position={[0, 1.95, 0]} scale={[settings.colorblind ? 0.46 : 0.34, 0.34, 1]}>
+        <spriteMaterial map={mark} color={markerColor(markerId || name)} transparent depthWrite={false} />
       </sprite>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -CAPSULE_CENTER + 0.035, 0]}>
         <circleGeometry args={[0.46, 16]} />

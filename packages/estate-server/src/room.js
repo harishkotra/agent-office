@@ -1,20 +1,39 @@
 import { clampNum, cleanAnim, cleanName, cleanZone, colorFor } from './names.js'
 
+function tabIdOf(value) {
+  return typeof value === 'string' && /^[\w-]{8,64}$/.test(value) ? value : ''
+}
+
 export class EstateRoom {
   constructor() {
     this.players = new Map()
     this.bySocket = new Map()
+    this.retired = new Map()
   }
 
   join(socket, info) {
     if (!info || info.verified !== true || !info.id) return null
+    const tabId = tabIdOf(info.tabId) || `tab-${Math.random().toString(36).slice(2, 12)}`
+    const retired = this.retired.get(info.id)
+    if (retired && retired.has(tabId)) return { replaced: true }
     const existing = this.players.get(info.id)
     if (existing && existing.socket !== socket) {
       this.bySocket.delete(existing.socket)
-      try {
-        existing.socket.close(4000, 'joined elsewhere')
-      } catch {
-        // The older socket may already be gone.
+      if (existing.tabId !== tabId) {
+        const next = retired || new Set()
+        next.add(existing.tabId)
+        this.retired.set(info.id, next)
+        try {
+          existing.socket.close(4000, 'joined elsewhere')
+        } catch {
+          // The older socket may already be gone.
+        }
+      } else {
+        try {
+          existing.socket.close(4001, 'reconnected')
+        } catch {
+          // The older socket may already be gone.
+        }
       }
     }
     const player = {
@@ -28,6 +47,7 @@ export class EstateRoom {
       yaw: Math.PI,
       anim: 'idle',
       zone: 'Front Gate',
+      tabId,
       socket,
     }
     this.players.set(player.id, player)

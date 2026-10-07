@@ -5,7 +5,9 @@ import {
   JUMP_V,
   RUN_SPEED,
   initialMove,
+  pressesConsumed,
   stepMove,
+  travelDistance,
   wishFromKeys,
   type MoveInput,
   type MoveState,
@@ -39,6 +41,23 @@ describe('wishFromKeys', () => {
     const wish = wishFromKeys(0, 0, 1)
     expect(wish.x).toBeCloseTo(1)
     expect(wish.z).toBeCloseTo(0)
+  })
+})
+
+describe('fixed step', () => {
+  it('covers the same distance at 60, 120, and 144 Hz', () => {
+    const a = travelDistance(60, 2)
+    const b = travelDistance(120, 2)
+    const c = travelDistance(144, 2)
+    expect(Math.abs(a - b)).toBeLessThan(0.05)
+    expect(Math.abs(a - c)).toBeLessThan(0.05)
+    expect(a).toBeGreaterThan(8)
+  })
+
+  it('holds a jump press until one physics step uses it', () => {
+    expect(pressesConsumed(60, 3)).toBe(1)
+    expect(pressesConsumed(120, 3)).toBe(1)
+    expect(pressesConsumed(144, 1)).toBe(1)
   })
 })
 

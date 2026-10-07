@@ -18,10 +18,11 @@ Open **http://localhost:5174** and sign in with your family account. A second si
 | WASD or arrows | Walk, relative to the camera |
 | Shift | Run |
 | Space | Jump. Jump again as you land for a higher second and third leap |
-| Ctrl or C | Dive |
+| C or V | Dive |
+| F | Enter a door, or open the family directory |
 | Mouse drag, or Q / E | Look around |
 | R | Return to the front gate |
-| Esc | Free the mouse |
+| Esc | Settings |
 
 Movement is a blend of Super Mario 64 (acceleration, jump chains, camera-relative steering), Fall Guys (bean body, dive), and Gang Beasts (loose, wobbly stride).
 
