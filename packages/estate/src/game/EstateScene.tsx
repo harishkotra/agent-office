@@ -79,15 +79,17 @@ export function EstateScene({
   admitted,
   onWelcome,
   onReject,
+  onStatus,
 }: {
   member: Member
   admitted: boolean
   onWelcome: (member: Member) => void
   onReject: (message: string) => void
+  onStatus?: (status: 'connecting' | 'offline') => void
 }) {
   const [physicsReady, setPhysicsReady] = useState(false)
   const [physicsError, setPhysicsError] = useState('')
-  usePresence(member, onWelcome, onReject)
+  usePresence(member, onWelcome, onReject, onStatus)
 
   useEffect(() => {
     let live = true

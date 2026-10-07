@@ -75,6 +75,8 @@ input {
 
 .btn-solid { background: #245c34; color: #f7f1e6; }
 
+a.btn { display: inline-block; text-align: center; text-decoration: none; }
+
 .btn:disabled { opacity: 0.7; cursor: wait; }
 
 .error { color: #8d2d2d; margin: 0; }

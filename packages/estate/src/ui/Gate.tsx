@@ -12,8 +12,11 @@ export function Gate({ onEnter, notice }: { onEnter: (member: Member) => void; n
       <section className="gate-card">
         <p className="eyebrow">The McCowan Family Estate</p>
         <h1>Walk the grounds together</h1>
-        <p className="lede">
-          Sign in with your family account. On mccowanestate.com this page uses the sign-in you already have. You appear under your profile name, and you see the other signed-in members who are here now.
+        <p className="lede">Sign in on the family site to visit the estate.</p>
+        <p>
+          <a className="btn btn-solid" href={FAMILY_ACCOUNT_URL}>
+            Sign in on the family site
+          </a>
         </p>
         <form
           className="signin"

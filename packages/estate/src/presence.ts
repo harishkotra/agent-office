@@ -114,17 +114,26 @@ function applySnapshot(message: Snapshot) {
   publishRoster()
 }
 
-export function usePresence(member: Member, onWelcome: (member: Member) => void, onReject?: (message: string) => void) {
+export function usePresence(
+  member: Member,
+  onWelcome: (member: Member) => void,
+  onReject?: (message: string) => void,
+  onStatus?: (status: 'connecting' | 'offline') => void,
+) {
   const memberRef = useRef(member)
   const welcomeRef = useRef(onWelcome)
   const rejectRef = useRef(onReject)
+  const statusRef = useRef(onStatus)
   memberRef.current = member
   welcomeRef.current = onWelcome
   rejectRef.current = onReject
+  statusRef.current = onStatus
 
   useEffect(() => {
     let socket: WebSocket | null = null
     let stopped = false
+    let welcomed = false
+    let failed = false
     let delay = 600
     let sendTimer = 0
     let presenceTimer = 0
@@ -152,6 +161,7 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
     const connect = async () => {
       if (stopped) return
       sim.status = 'connecting'
+      if (!welcomed) statusRef.current?.(failed ? 'offline' : 'connecting')
       const token = (await currentToken()) || memberRef.current.token
       if (!token) {
         rejectRef.current?.('Sign in on the family site to walk the grounds.')
@@ -180,6 +190,8 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
         if (!message) return
         if (message.t === 'welcome') {
           const welcome = message as Welcome
+          welcomed = true
+          failed = false
           sim.id = welcome.id
           sim.name = welcome.name
           sim.color = welcome.color
@@ -211,10 +223,18 @@ export function usePresence(member: Member, onWelcome: (member: Member) => void,
           return
         }
         sim.status = 'offline'
+        if (!welcomed) {
+          failed = true
+          statusRef.current?.('offline')
+        }
         window.setTimeout(connect, delay)
         delay = Math.min(8000, delay * 2)
       }
       ws.onerror = () => {
+        if (!stopped && !welcomed) {
+          failed = true
+          statusRef.current?.('offline')
+        }
         ws.close()
       }
     }
