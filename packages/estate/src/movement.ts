@@ -14,6 +14,87 @@ export const CHAIN_WINDOW = 0.32
 export const TERMINAL = -30
 export const DIVE_SPEED = 12.2
 export const DIVE_TIME = 0.48
+export const PHYSICS_DT = 1 / 60
+
+export type EdgeLatch = {
+  jump: boolean
+  dive: boolean
+}
+
+export function notePress(
+  latch: EdgeLatch,
+  jumpDown: boolean,
+  diveDown: boolean,
+  prev: EdgeLatch,
+) {
+  if (jumpDown && !prev.jump) latch.jump = true
+  if (diveDown && !prev.dive) latch.dive = true
+  prev.jump = jumpDown
+  prev.dive = diveDown
+}
+
+export function takePresses(latch: EdgeLatch): { jumpPressed: boolean; divePressed: boolean } {
+  const jumpPressed = latch.jump
+  const divePressed = latch.dive
+  latch.jump = false
+  latch.dive = false
+  return { jumpPressed, divePressed }
+}
+
+export function travelDistance(hz: number, seconds: number): number {
+  const frame = 1 / hz
+  let accumulator = 0
+  let state = initialMove()
+  let distance = 0
+  const latch: EdgeLatch = { jump: false, dive: false }
+  const prev: EdgeLatch = { jump: false, dive: false }
+  const frames = Math.round(seconds * hz)
+  for (let i = 0; i < frames; i++) {
+    notePress(latch, false, false, prev)
+    accumulator += frame
+    let guard = 0
+    while (accumulator + 1e-9 >= PHYSICS_DT && guard < 8) {
+      guard += 1
+      const presses = takePresses(latch)
+      state = stepMove(
+        state,
+        {
+          wishX: 0,
+          wishZ: -1,
+          run: true,
+          jumpPressed: presses.jumpPressed,
+          jumpHeld: false,
+          divePressed: presses.divePressed,
+          dt: PHYSICS_DT,
+        },
+        true,
+      )
+      distance += Math.hypot(state.vx, state.vz) * PHYSICS_DT
+      accumulator -= PHYSICS_DT
+    }
+  }
+  return distance
+}
+
+export function pressesConsumed(hz: number, pressFrame: number): number {
+  const frame = 1 / hz
+  let accumulator = 0
+  const latch: EdgeLatch = { jump: false, dive: false }
+  const prev: EdgeLatch = { jump: false, dive: false }
+  let consumed = 0
+  const frames = Math.round(hz)
+  for (let i = 0; i < frames; i++) {
+    notePress(latch, i === pressFrame, false, prev)
+    accumulator += frame
+    let guard = 0
+    while (accumulator + 1e-9 >= PHYSICS_DT && guard < 8) {
+      guard += 1
+      if (takePresses(latch).jumpPressed) consumed += 1
+      accumulator -= PHYSICS_DT
+    }
+  }
+  return consumed
+}
 
 export type MoveInput = {
   wishX: number

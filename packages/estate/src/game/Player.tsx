@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { CapsuleCollider, RigidBody, useRapier, type RapierRigidBody } from '@react-three/rapier'
+import { CapsuleCollider, RigidBody, useBeforePhysicsStep, useRapier, type RapierRigidBody } from '@react-three/rapier'
 import type { Group } from 'three'
 import { CharacterModel } from './CharacterModel'
-import { initialMove, stepMove, wishFromKeys, type MoveState } from '../movement'
+import { initialMove, notePress, PHYSICS_DT, stepMove, takePresses, wishFromKeys, type EdgeLatch, type MoveState } from '../movement'
 import { CAPSULE_CENTER, CAPSULE_HALF, CAPSULE_R, look, sim, type Pose } from '../sim'
 import { MARK, zoneAt } from '../zones'
 
@@ -12,7 +12,10 @@ export function LocalPlayer({ name }: { name: string }) {
   const facing = useRef<Group>(null)
   const pose = useRef<Pose>({ anim: 'idle', squash: 1, lean: 0 })
   const move = useRef<MoveState>(initialMove())
-  const prev = useRef({ jump: false, dive: false, reset: false })
+  const prev = useRef<EdgeLatch>({ jump: false, dive: false })
+  const latch = useRef<EdgeLatch>({ jump: false, dive: false })
+  const resetLatch = useRef(false)
+  const resetPrev = useRef(false)
   const { world } = useRapier()
   const controller = useRef<ReturnType<typeof world.createCharacterController> | null>(null)
 
@@ -31,13 +34,6 @@ export function LocalPlayer({ name }: { name: string }) {
   }, [world])
 
   useFrame((_, dt) => {
-    const rb = body.current
-    const ctrl = controller.current
-    if (!rb || !ctrl) return
-    const collider = rb.collider(0)
-    if (!collider) return
-    sim.excludeBody = rb
-
     const frame = Math.min(dt, 0.05)
     let lookX = look.dx
     let lookY = look.dy
@@ -48,20 +44,31 @@ export function LocalPlayer({ name }: { name: string }) {
     if (look.keys.KeyE) sim.camYaw -= 1.8 * frame
     sim.camPitch = Math.min(1.15, Math.max(0.18, sim.camPitch + lookY * 0.0022))
 
+    const jump = !!look.keys.Space
+    const dive = !!(look.keys.ControlLeft || look.keys.ControlRight || look.keys.KeyC)
+    notePress(latch.current, jump, dive, prev.current)
+    const reset = !!look.keys.KeyR
+    if (reset && !resetPrev.current) resetLatch.current = true
+    resetPrev.current = reset
+  })
+
+  useBeforePhysicsStep(() => {
+    const rb = body.current
+    const ctrl = controller.current
+    if (!rb || !ctrl) return
+    const collider = rb.collider(0)
+    if (!collider) return
+    sim.excludeBody = rb
+
     const forward = (look.keys.KeyW || look.keys.ArrowUp ? 1 : 0) - (look.keys.KeyS || look.keys.ArrowDown ? 1 : 0)
     const strafe = (look.keys.KeyD || look.keys.ArrowRight ? 1 : 0) - (look.keys.KeyA || look.keys.ArrowLeft ? 1 : 0)
     const wish = wishFromKeys(sim.camYaw, forward, strafe)
-    const jump = !!(look.keys.Space)
-    const dive = !!(look.keys.ControlLeft || look.keys.ControlRight || look.keys.KeyC)
-    const reset = !!look.keys.KeyR
-    const jumpPressed = jump && !prev.current.jump
-    const divePressed = dive && !prev.current.dive
-    prev.current.jump = jump
-    prev.current.dive = dive
+    const presses = takePresses(latch.current)
+    const reset = resetLatch.current
+    resetLatch.current = false
 
     const here = rb.translation()
-    if ((reset && !prev.current.reset) || here.y < -2) {
-      prev.current.reset = reset
+    if (reset || here.y < -2) {
       move.current = initialMove()
       const next = { x: MARK.spawn.x, y: CAPSULE_CENTER, z: MARK.spawn.z }
       rb.setTranslation(next, true)
@@ -75,7 +82,6 @@ export function LocalPlayer({ name }: { name: string }) {
       pose.current = { anim: 'idle', squash: 1, lean: 0 }
       return
     }
-    prev.current.reset = reset
 
     const grounded = ctrl.computedGrounded()
     const nextMove = stepMove(
@@ -84,15 +90,15 @@ export function LocalPlayer({ name }: { name: string }) {
         wishX: wish.x,
         wishZ: wish.z,
         run: !!(look.keys.ShiftLeft || look.keys.ShiftRight),
-        jumpPressed,
-        jumpHeld: jump,
-        divePressed,
-        dt: frame,
+        jumpPressed: presses.jumpPressed,
+        jumpHeld: !!look.keys.Space,
+        divePressed: presses.divePressed,
+        dt: PHYSICS_DT,
       },
       grounded,
     )
     move.current = nextMove
-    let stepY = nextMove.vy * frame
+    let stepY = nextMove.vy * PHYSICS_DT
     if (nextMove.vy > 0) {
       stepY = Math.max(stepY, 0.1)
       ctrl.disableSnapToGround()
@@ -100,7 +106,7 @@ export function LocalPlayer({ name }: { name: string }) {
       stepY = Math.min(stepY, -0.05)
       ctrl.enableSnapToGround(0.22)
     }
-    const step = { x: nextMove.vx * frame, y: stepY, z: nextMove.vz * frame }
+    const step = { x: nextMove.vx * PHYSICS_DT, y: stepY, z: nextMove.vz * PHYSICS_DT }
     ctrl.computeColliderMovement(collider, step)
     const moved = ctrl.computedMovement()
     const pos = rb.translation()
