@@ -213,13 +213,15 @@ function DirectoryPanel() {
           {cards.map((card) => (
               <article key={card.id} aria-label={card.spoken}>
                 <h3>{card.name}</h3>
-                {card.passed ? <p>{card.passed}</p> : null}
-                <p>{card.bio}</p>
-                {card.phone || card.email || card.city || card.state ? (
-                  <p>
-                    {[card.phone, card.email, card.city, card.state].filter(Boolean).join(' | ')}
-                  </p>
-                ) : null}
+                {card.listed ? (
+                  <>
+                    {card.role ? <p>{card.role}</p> : null}
+                    {card.bio ? <p>{card.bio}</p> : null}
+                    {card.city ? <p>{card.city}</p> : null}
+                  </>
+                ) : (
+                  <p>{card.initials}</p>
+                )}
               </article>
             ))}
         </div>

@@ -1,39 +1,29 @@
+import { initials } from './markers'
+
 export type DirectoryPerson = {
   id: string
   name: string
   role?: string | null
   parent_id?: string | null
-  notes?: string | null
   bio?: string | null
-  phone?: string | null
-  email?: string | null
   city?: string | null
-  state?: string | null
-  is_minor?: boolean | null
-  location_parent_approved?: boolean | null
+  sort_order?: number | null
+  contact_listed?: boolean | null
 }
 
 export type DirectoryCard = {
   id: string
   name: string
-  passed: string
+  initials: string
+  listed: boolean
+  role: string
   bio: string
-  phone: string | null
-  email: string | null
-  city: string | null
-  state: string | null
+  city: string
   spoken: string
 }
 
-export function personPassed(person: DirectoryPerson): boolean {
-  const role = person.role || ''
-  if (/passed/i.test(role)) return true
-  return /\bdied\b|passed away/i.test(`${role} ${person.notes || ''} ${person.bio || ''}`)
-}
-
-function filled(value: string | null | undefined): string | null {
-  const text = (value || '').trim()
-  return text || null
+function shown(value: string | null | undefined): string {
+  return (value || '').trim()
 }
 
 export function directoryCards(people: DirectoryPerson[], query: string): DirectoryCard[] {
@@ -41,26 +31,19 @@ export function directoryCards(people: DirectoryPerson[], query: string): Direct
   return people
     .filter((person) => person.id && person.name && (!q || person.name.toLowerCase().includes(q)))
     .map((person) => {
-      const minor = person.is_minor === true
-      const locationOk = !minor || person.location_parent_approved === true
-      const passed = personPassed(person)
-      const phone = minor || passed ? null : filled(person.phone) || '—'
-      const email = minor || passed ? null : filled(person.email) || '—'
-      const city = locationOk && !passed ? filled(person.city) : null
-      const state = locationOk && !passed ? filled(person.state) : null
-      const bio = (person.bio || person.notes || '').trim() || 'No bio yet.'
-      const passedText = passed ? 'Passed away. Contact not listed.' : ''
-      const place = [city, state].filter((part) => part && part !== '—').join(', ')
-      const spoken = [person.name, passedText, bio, place].filter(Boolean).join('. ')
+      const listed = person.contact_listed === true
+      const role = listed ? shown(person.role) : ''
+      const bio = listed ? shown(person.bio) : ''
+      const city = listed ? shown(person.city) : ''
+      const spoken = [person.name, role, bio, city].filter(Boolean).join('. ')
       return {
         id: person.id,
         name: person.name,
-        passed: passedText,
+        initials: initials(person.name),
+        listed,
+        role,
         bio,
-        phone,
-        email,
         city,
-        state,
         spoken,
       }
     })

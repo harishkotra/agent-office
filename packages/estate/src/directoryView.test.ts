@@ -1,60 +1,59 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { directoryCards } from './directoryView'
 
 describe('directory cards', () => {
-  it('hides phone and email for ages 13 to 17, and city until a parent approves', () => {
-    const [minor, approved, adult] = directoryCards(
+  it('shows a name and initials when contact is not listed, and only returned fields when it is', () => {
+    const [hidden, listed, blank] = directoryCards(
       [
         {
-          id: 'm',
-          name: 'Minor Example',
-          role: 'Child',
-          bio: 'A test bio.',
-          phone: '555-0100',
-          email: 'minor@example.com',
-          city: 'Town',
-          state: 'CA',
-          is_minor: true,
-          location_parent_approved: false,
+          id: 'h',
+          name: 'River Example',
+          role: 'Member',
+          bio: 'A bio that stays hidden.',
+          city: 'Sampletown',
+          contact_listed: false,
         },
         {
-          id: 'a',
-          name: 'Approved Example',
-          role: 'Child',
-          bio: 'Another bio.',
-          phone: '555-0101',
-          email: 'approved@example.com',
-          city: 'Town',
-          state: 'CA',
-          is_minor: true,
-          location_parent_approved: true,
+          id: 'l',
+          name: 'Cedar Example',
+          role: 'Member',
+          bio: 'A listed bio.',
+          city: 'Sampletown',
+          contact_listed: true,
         },
         {
-          id: 'g',
-          name: 'Adult Example',
-          role: 'Parent',
-          bio: 'Adult bio.',
-          phone: '555-0102',
-          email: 'adult@example.com',
-          city: 'Town',
-          state: 'CA',
-          is_minor: false,
+          id: 'b',
+          name: 'Wren Example',
+          role: ' ',
+          bio: '',
+          city: '',
+          contact_listed: true,
         },
       ],
       '',
     )
-    expect(minor.phone).toBeNull()
-    expect(minor.email).toBeNull()
-    expect(minor.city).toBeNull()
-    expect(minor.state).toBeNull()
-    expect(minor.spoken).not.toMatch(/555|@/)
-    expect(approved.phone).toBeNull()
-    expect(approved.email).toBeNull()
-    expect(approved.city).toBe('Town')
-    expect(approved.state).toBe('CA')
-    expect(approved.spoken).toMatch(/Town/)
-    expect(approved.spoken).not.toMatch(/555|@/)
-    expect(adult.phone).toBe('555-0102')
-    expect(adult.email).toBe('adult@example.com')
+    expect(hidden.listed).toBe(false)
+    expect(hidden.initials).toBe('RE')
+    expect(hidden.role).toBe('')
+    expect(hidden.bio).toBe('')
+    expect(hidden.city).toBe('')
+    expect(hidden.spoken).toBe('River Example')
+    expect(listed.role).toBe('Member')
+    expect(listed.bio).toBe('A listed bio.')
+    expect(listed.city).toBe('Sampletown')
+    expect(listed.spoken).not.toMatch(/teen|minor|age|@|555/i)
+    expect(blank.role).toBe('')
+    expect(blank.bio).toBe('')
+    expect(blank.city).toBe('')
+    expect(blank.spoken).toBe('Wren Example')
+  })
+
+  it('selects only the signed-in directory columns', () => {
+    const source = readFileSync(new URL('./directory.ts', import.meta.url), 'utf8')
+    expect(source).toContain("from('signed_in_directory')")
+    expect(source).toContain(".select('id, name, role, parent_id, bio, sort_order, city, contact_listed')")
+    expect(source).not.toMatch(/select\s*\(\s*['"]\*['"]/)
+    expect(source).not.toMatch(/tree_people|email|phone|notes/)
   })
 })
