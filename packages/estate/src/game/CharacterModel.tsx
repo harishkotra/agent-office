@@ -36,12 +36,10 @@ export function CharacterModel({
   getColor,
   pose,
   name,
-  markerId = '',
 }: {
   getColor: () => string
   pose: { current: Pose }
   name: string
-  markerId?: string
 }) {
   const visual = useRef<THREE.Group>(null)
   const armL = useRef<THREE.Group>(null)
@@ -142,7 +140,7 @@ export function CharacterModel({
         <spriteMaterial map={map} transparent depthWrite={false} />
       </sprite>
       <sprite position={[0, 1.95, 0]} scale={[settings.colorblind ? 0.46 : 0.34, 0.34, 1]}>
-        <spriteMaterial map={mark} color={markerColor(markerId || name)} transparent depthWrite={false} />
+        <spriteMaterial map={mark} color={markerColor(name)} transparent depthWrite={false} />
       </sprite>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -CAPSULE_CENTER + 0.035, 0]}>
         <circleGeometry args={[0.46, 16]} />

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { loadFamilyDirectory } from '../directory'
-import { directoryCards, type DirectoryPerson } from '../directoryView'
+import { DIRECTORY_LOAD_ERROR, directoryCards, type DirectoryPerson } from '../directoryView'
 import { TRAVEL, type TravelStop } from '../buildings'
 import { play, publishPlay, requestTravel, subscribePlay } from '../play'
 import { ACTION_LABELS, assignBinding, bindingLabel, controlLines, listenFor, patchOptions, resetSettings, setPaused, settings, subscribeSettings } from '../settings'
@@ -202,19 +202,26 @@ function PauseMenu() {
 }
 
 function DirectoryPanel() {
-  const ref = useDialogFocus(() => publishPlay({ directory: false }))
+  const closeDirectory = useCallback(() => {
+    announce('Back in the Great Hall')
+    publishPlay({ directory: false })
+  }, [])
+  const ref = useDialogFocus(closeDirectory)
   const [people, setPeople] = useState<DirectoryPerson[]>([])
   const [query, setQuery] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    announce('Family directory open.')
+  }, [])
   useEffect(() => {
     let live = true
     loadFamilyDirectory()
       .then((rows) => {
         if (live) setPeople(rows)
       })
-      .catch((err: unknown) => {
-        if (live) setError(err instanceof Error ? err.message : 'The family directory could not be loaded right now.')
+      .catch(() => {
+        if (live) setError(DIRECTORY_LOAD_ERROR)
       })
       .finally(() => {
         if (live) setLoading(false)
@@ -229,25 +236,22 @@ function DirectoryPanel() {
       <section className="pause-card directory-card">
         <h2 id="directory-title">Family directory</h2>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name" aria-label="Search by name" />
-        {loading ? <p>Loading the directory…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {loading ? <p role="status">Loading the directory…</p> : null}
+        {error ? <p className="error" role="alert">{error}</p> : null}
         <div className="directory-list">
           {cards.map((card) => (
-              <article key={card.id} aria-label={card.spoken}>
-                <h3>{card.name}</h3>
-                {card.listed ? (
-                  <>
-                    {card.role ? <p>{card.role}</p> : null}
-                    {card.bio ? <p>{card.bio}</p> : null}
-                    {card.city ? <p>{card.city}</p> : null}
-                  </>
-                ) : (
-                  <p>{card.initials}</p>
-                )}
+              <article key={card.id} aria-label={card.label}>
+                <span className="swatch" aria-hidden="true" style={{ background: card.color, color: card.ink }}>
+                  {card.initials}
+                </span>
+                <h3 aria-hidden="true">{card.name}</h3>
+                {card.role ? <p aria-hidden="true">{card.role}</p> : null}
+                {card.bio ? <p aria-hidden="true">{card.bio}</p> : null}
+                {card.city ? <p aria-hidden="true">{card.city}</p> : null}
               </article>
             ))}
         </div>
-        <button type="button" className="btn" onClick={() => publishPlay({ directory: false })}>
+        <button type="button" className="btn" onClick={closeDirectory}>
           Close
         </button>
       </section>

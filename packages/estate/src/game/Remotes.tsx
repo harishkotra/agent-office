@@ -31,7 +31,7 @@ function Remote({ id }: { id: string }) {
   if (!initial) return null
   return (
     <group ref={ref} position={[initial.x, initial.y, initial.z]}>
-      <CharacterModel getColor={() => net.remotes.get(id)?.color || initial.color} pose={pose} name={initial.name} markerId={id} />
+      <CharacterModel getColor={() => net.remotes.get(id)?.color || initial.color} pose={pose} name={initial.name} />
     </group>
   )
 }

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { directionWord, placeCue, walkerCue } from './cues'
-import { initials, markerColor } from './markers'
+import { OKABE_ITO, initials, markerColor, markerInk } from './markers'
 
 describe('cues', () => {
   it('names a door by direction and a walker by display name only', () => {
@@ -28,5 +28,11 @@ describe('markers', () => {
     expect(markerColor('same')).toMatch(/^#[0-9a-f]{6}$/)
     expect(initials('Ada Example')).toBe('AE')
     expect(initials('Jo')).toBe('J')
+    for (const color of OKABE_ITO) {
+      const ink = markerInk(color)
+      expect(ink === '#000000' || ink === '#ffffff').toBe(true)
+      if (color === '#0072b2' || color === '#000000') expect(ink).toBe('#ffffff')
+      else expect(ink).toBe('#000000')
+    }
   })
 })

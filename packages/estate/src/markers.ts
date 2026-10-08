@@ -2,6 +2,12 @@ export const OKABE_ITO = ['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2',
 
 const COLOR_RE = /^#[0-9a-f]{6}$/
 
+const INK_ON_LIGHT = new Set(['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#cc79a7', '#d55e00'])
+
+export function markerInk(color: string): '#000000' | '#ffffff' {
+  return INK_ON_LIGHT.has(color) || !color ? '#000000' : '#ffffff'
+}
+
 export function markerColor(id: string): string {
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 33 + id.charCodeAt(i)) >>> 0

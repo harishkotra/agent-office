@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { PlayMenus } from './PlayMenus'
-import { markerColor, initials } from '../markers'
+import { markerColor, markerInk, initials } from '../markers'
 import { controlLines, settings } from '../settings'
 import { sim } from '../sim'
 
@@ -53,7 +53,7 @@ export function Hud() {
       ctx.fillRect(pool.x - 6, pool.y - 4, 12, 8)
       for (const person of sim.roster) {
         const point = dot(person.x, person.z, size)
-        ctx.fillStyle = settings.colorblind ? markerColor(person.id) : cssColor(person.color)
+        ctx.fillStyle = settings.colorblind ? markerColor(person.name) : cssColor(person.color)
         ctx.beginPath()
         ctx.arc(point.x, point.y, person.self ? 4.5 : 3.5, 0, Math.PI * 2)
         ctx.fill()
@@ -74,7 +74,7 @@ export function Hud() {
         <ul>
           {roster.map((person) => (
             <li key={person.id}>
-              <span className="swatch" style={{ background: settings.colorblind ? markerColor(person.id) : cssColor(person.color) }}>
+              <span className="swatch" style={{ background: settings.colorblind ? markerColor(person.name) : cssColor(person.color), color: settings.colorblind ? markerInk(markerColor(person.name)) : undefined }}>
                 {initials(person.name)}
               </span>
               <span>

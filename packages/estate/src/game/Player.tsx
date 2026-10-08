@@ -241,7 +241,6 @@ export function LocalPlayer({ name }: { name: string }) {
       if (interact && targetHit?.kind === 'bookshelf') {
         publishPlay({ directory: true, feedback: 'Opening the family directory', feedbackUntil: Date.now() + 1600 })
         document.exitPointerLock()
-        announce('Family directory open.')
       }
     }
     const shown = targetHit && !stepped ? { id: targetHit.id, kind: targetHit.kind, text: promptFor(targetHit.kind, bindingLabel('interact'), targetHit.label, targetHit.door ? insideBuilding(target.x, target.z, targetHit.building) : false) } : null
@@ -294,7 +293,7 @@ export function LocalPlayer({ name }: { name: string }) {
     >
       <CapsuleCollider args={[CAPSULE_HALF, CAPSULE_R]} />
       <group ref={facing}>
-        <CharacterModel getColor={() => sim.color} pose={pose} name={name} markerId={sim.id || name} />
+        <CharacterModel getColor={() => sim.color} pose={pose} name={name} />
       </group>
     </RigidBody>
   )

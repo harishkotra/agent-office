@@ -154,7 +154,7 @@ Take the first unchecked task that is not blocked (section A, step 3). "Draft" m
 - [ ] **0b. Sign-in gate: draft PR #6** (replaces draft PR #3). Keep working in #6; do not open another PR. #6 must include: (1) `localhost` allowed as an origin only in development builds, and (2) join rate limits keyed on `CF-Connecting-IP` in the Cloudflare version. Draft, protected. Security Bot reviews it after #5. Once #6 has both items, #3 gets closed by the owner or a bot (Cursor may close it if it can, with a one-line comment pointing to #6).
 
 ### PR B, split into small PRs (spec 7.1 and 7A)
-- [ ] **B1. Bookshelf** (spec 6.4, 6B; 7.1 bookshelf item). The card/view UI auto-merges; the `directory.ts` read is protected and goes in a separate draft PR.
+- [x] **B1. Bookshelf** (spec 6.4, 6B; 7.1 bookshelf item). The card/view UI auto-merges; the `directory.ts` read is protected and goes in a separate draft PR.
 - [x] **B2. Movement and camera** (spec 3.1–3.3; 7A items 1–12).
 - [ ] **B3. Input, touch and settings** (spec 2.1–2.5, 6.2; 7A items 13–19, 27–29).
 - [x] **B4. Doors, Travel and menus** (spec 4.1, 4.2, 4.4, 5.4, 6.1; 7A items 20–26).
