@@ -7,6 +7,7 @@ export type BoxItem = {
   position: [number, number, number]
   size: [number, number, number]
   color: string
+  roughness?: number
   rotation?: [number, number, number]
 }
 
@@ -23,10 +24,11 @@ export function BatchGroup({ children }: { children: ReactNode }) {
 }
 
 function MergedBatch({ items }: { items: BoxItem[] }) {
-  const key = items.map((item) => `${item.color}:${item.position.join(',')}:${item.size.join(',')}:${item.rotation?.join(',') || ''}`).join('|')
+  const snapshot = items.slice()
+  const key = snapshot.map((item) => `${item.color}:${item.roughness ?? ''}:${item.position.join(',')}:${item.size.join(',')}:${item.rotation?.join(',') || ''}`).join('|')
   const groups = useMemo(() => {
-    const by = new Map<string, BoxGeometry[]>()
-    for (const item of items) {
+    const by = new Map<string, { roughness: number; geos: BoxGeometry[] }>()
+    for (const item of snapshot) {
       const geo = new BoxGeometry(item.size[0], item.size[1], item.size[2])
       const rotation = item.rotation || [0, 0, 0]
       const matrix = new Matrix4().compose(
@@ -35,14 +37,15 @@ function MergedBatch({ items }: { items: BoxItem[] }) {
         new Vector3(1, 1, 1),
       )
       geo.applyMatrix4(matrix)
-      const list = by.get(item.color) || []
-      list.push(geo)
-      by.set(item.color, list)
+      const bucket = item.color + ':' + (item.roughness ?? 0.84)
+      const list = by.get(bucket) || { roughness: item.roughness ?? 0.84, geos: [] }
+      list.geos.push(geo)
+      by.set(bucket, list)
     }
-    return [...by.entries()].map(([color, geos]) => {
-      const geometry = mergeGeometries(geos, false)
-      for (const geo of geos) geo.dispose()
-      return { color, geometry }
+    return [...by.entries()].map(([bucket, list]) => {
+      const geometry = mergeGeometries(list.geos, false)
+      for (const geo of list.geos) geo.dispose()
+      return { color: bucket.split(':')[0], roughness: list.roughness, geometry }
     })
   }, [key])
   useEffect(
@@ -56,7 +59,7 @@ function MergedBatch({ items }: { items: BoxItem[] }) {
       {groups.map((group) =>
         group.geometry ? (
           <mesh key={group.color} geometry={group.geometry} castShadow receiveShadow>
-            <meshStandardMaterial color={group.color} roughness={0.84} />
+            <meshStandardMaterial color={group.color} roughness={group.roughness} />
           </mesh>
         ) : null,
       )}
@@ -81,7 +84,7 @@ export function Solid({
 }) {
   const batch = useContext(VisualBatch)
   if (batch) {
-    batch.push({ position, size, color, rotation })
+    batch.push({ position, size, color, roughness, rotation })
     return (
       <RigidBody type="fixed" colliders={false} position={position} rotation={rotation}>
         <CuboidCollider args={[size[0] / 2, size[1] / 2, size[2] / 2]} />
@@ -117,7 +120,7 @@ export function Box({
 }) {
   const batch = useContext(VisualBatch)
   if (batch && opacity >= 1) {
-    batch.push({ position, size, color, rotation })
+    batch.push({ position, size, color, roughness, rotation })
     return null
   }
   return (

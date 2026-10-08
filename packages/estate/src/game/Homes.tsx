@@ -73,8 +73,6 @@ function House({ index, buildingId, interior }: { index: number; buildingId: str
 function MansionInterior() {
   return (
     <group>
-      <Box position={[0, 0.03, -28]} size={[22, 0.05, 20]} color="#c4a27a" />
-      <Solid position={[-2.2, 0.4, -27]} size={[3.2, 0.8, 1.2]} color="#7a4e30" />
       <Solid position={[-2.2, 1.15, -37.7]} size={[2.6, 2.3, 0.45]} color="#6a3a28" />
       <Box position={[-2.2, 1.4, -37.4]} size={[2.2, 1.5, 0.08]} color="#8d4b32" />
     </group>

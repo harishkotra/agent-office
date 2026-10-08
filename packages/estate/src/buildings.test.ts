@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { HOMES, MANSION, interiorsFor, nearbyTarget, promptText, shouldLoadInterior, stepThrough } from './buildings'
 
 describe('interiors', () => {
+  it('names the homes and the mansion without a theme', () => {
+    expect(HOMES.map((home) => home.label)).toEqual(['Home 1', 'Home 2', 'Home 3', 'Home 4', 'Home 5'])
+    expect(MANSION.label).toBe('Mansion')
+  })
+
   it('loads a home on approach and unloads after leaving', () => {
     const rose = HOMES[0]
     const door = rose.doors[0]
@@ -10,8 +15,8 @@ describe('interiors', () => {
     expect(shouldLoadInterior(true, door.x + 20, door.z, rose)).toBe(true)
     expect(shouldLoadInterior(true, door.x + 40, door.z, rose)).toBe(false)
     const loaded = new Set(interiorsFor(door.x + 2, door.z, new Set()))
-    expect(loaded.has('rose')).toBe(true)
-    expect(interiorsFor(0, 82, loaded).includes('rose')).toBe(false)
+    expect(loaded.has('home-1')).toBe(true)
+    expect(interiorsFor(0, 82, loaded).includes('home-1')).toBe(false)
   })
 
   it('asks you to press to enter, then steps through the door', () => {

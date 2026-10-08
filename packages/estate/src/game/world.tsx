@@ -1,10 +1,21 @@
-import { useMemo } from 'react'
-import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three'
+import { useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { CanvasTexture, RepeatWrapping, SRGBColorSpace, type PointLight } from 'three'
 import { CylinderCollider, RigidBody } from '@react-three/rapier'
 import { BatchGroup, Box, Column, InvisibleWall, Solid } from './primitives'
 import { Homes } from './Homes'
 import { Trees } from './trees'
 import { MARK, WORLD } from '../zones'
+import { sim } from '../sim'
+
+function HallLight() {
+  const light = useRef<PointLight>(null)
+  useFrame(() => {
+    const on = sim.zone === 'Great Hall' || sim.zone === 'West Wing' || sim.zone === 'East Wing'
+    if (light.current) light.current.intensity = on ? 18 : 0
+  })
+  return <pointLight ref={light} position={[0, 4.4, -27]} intensity={0} distance={14} color="#ffe0b8" />
+}
 
 const STONE = '#efe4d2'
 const STONE_D = '#d7c6ae'
@@ -185,7 +196,7 @@ function Manor() {
       {[-8, 8].map((x) => (
         <Box key={`win-s2-${x}`} position={[x, 4.55, z1 + 0.28]} size={[1.25, 1.35, 0.08]} color={GLASS} roughness={0.15} />
       ))}
-      <pointLight position={[0, 4.4, -27]} intensity={18} distance={14} color="#ffe0b8" />
+      <HallLight />
     </group>
   )
 }
@@ -281,6 +292,7 @@ export function EstateWorld() {
   }
 
   return (
+    <>
     <BatchGroup>
     <group>
       <RigidBody type="fixed" colliders={false} position={[0, -1, 0]}>
@@ -353,9 +365,10 @@ export function EstateWorld() {
       <Solid position={[0, 1.6, WORLD.halfZ - 1.2]} size={[WORLD.halfX * 2, 3.2, 1.4]} color={HEDGE} />
       <Solid position={[-WORLD.halfX + 1.2, 1.6, 0]} size={[1.4, 3.2, WORLD.halfZ * 2]} color={HEDGE} />
       <Solid position={[WORLD.halfX - 1.2, 1.6, 0]} size={[1.4, 3.2, WORLD.halfZ * 2]} color={HEDGE} />
-      <Homes />
     </group>
     </BatchGroup>
+    <Homes />
+    </>
   )
 }
 

@@ -55,16 +55,16 @@ function home(id: string, label: string, cx: number, cz: number, facing: 'east' 
 }
 
 export const HOMES: Building[] = [
-  home('rose', 'Rose House', -108, 78, 'east'),
-  home('meadow', 'Meadow House', 108, 78, 'west'),
-  home('pond', 'Pond House', 108, 48, 'west'),
-  home('orchard', 'Orchard House', 108, -72, 'west'),
-  home('pine', 'Pine House', -108, 36, 'east'),
+  home('home-1', 'Home 1', -108, 78, 'east'),
+  home('home-2', 'Home 2', 108, 78, 'west'),
+  home('home-3', 'Home 3', 108, 48, 'west'),
+  home('home-4', 'Home 4', 108, -72, 'west'),
+  home('home-5', 'Home 5', -108, 36, 'east'),
 ]
 
 export const MANSION: Building = {
   id: 'mansion',
-  label: 'the mansion',
+  label: 'Mansion',
   kind: 'mansion',
   minX: -30,
   maxX: 30,
@@ -74,7 +74,7 @@ export const MANSION: Building = {
   leave: 32,
   zone: 'Great Hall',
   doors: [
-    { id: 'mansion-main', x: 0, z: -16, inwardX: 0, inwardZ: -1, label: 'the mansion' },
+    { id: 'mansion-main', x: 0, z: -16, inwardX: 0, inwardZ: -1, label: 'Mansion' },
     { id: 'mansion-west', x: -22.4, z: -20, inwardX: 0, inwardZ: -1, label: 'the west wing' },
     { id: 'mansion-east', x: 22.4, z: -20, inwardX: 0, inwardZ: -1, label: 'the east wing' },
   ],

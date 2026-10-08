@@ -19,13 +19,17 @@ function coarseScreen() {
   return window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820
 }
 
+let webglCache: boolean | null = null
+
 export function webglOk() {
+  if (webglCache != null) return webglCache
   try {
     const canvas = document.createElement('canvas')
-    return !!(canvas.getContext('webgl2') || canvas.getContext('webgl'))
+    webglCache = !!(canvas.getContext('webgl2') || canvas.getContext('webgl'))
   } catch {
-    return false
+    webglCache = false
   }
+  return webglCache
 }
 
 function Sun() {
