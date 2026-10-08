@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { BUILDINGS, HOMES, insideBuilding, syncInteriors } from '../buildings'
+import { BUILDINGS, HOMES, doorMotion, insideBuilding, syncInteriors, type Door, type DoorPhase } from '../buildings'
 import { sim } from '../sim'
 import { Box, Solid } from './primitives'
 
@@ -25,17 +25,20 @@ export function Homes() {
       ))}
       {loaded.has('mansion') ? <MansionInterior /> : null}
       {BUILDINGS.flatMap((building) =>
-        building.doors.map((door) => (
-          <Box
-            key={door.id}
-            position={[door.x - door.inwardX * 1.15, 0.05, door.z - door.inwardZ * 1.15]}
-            size={[1.4, 0.06, 1.4]}
-            color="#f4ead8"
-          />
-        )),
+        building.doors.map((door) => <DoorLeaf key={door.id} door={door} />),
       )}
     </group>
   )
+}
+
+function DoorLeaf({ door }: { door: Door }) {
+  const [phase, setPhase] = useState<DoorPhase>('idle')
+  useFrame(() => {
+    const next = doorMotion.get(door.id) ?? 'idle'
+    setPhase((prev) => (prev === next ? prev : next))
+  })
+  if (phase === 'open' || phase === 'opening') return null
+  return <Solid position={[door.x, 1.15, door.z]} size={[0.18, 2.3, 1.5]} color="#6b442c" />
 }
 
 function House({ index, buildingId, interior }: { index: number; buildingId: string; interior: boolean }) {

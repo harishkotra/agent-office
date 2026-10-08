@@ -87,7 +87,7 @@ export function Hud() {
             </li>
           ))}
         </ul>
-        {status !== 'online' ? <p className="status">Reconnecting to the family grounds…</p> : null}
+        {status !== 'online' ? <p className="status" role="status">Reconnecting to the family grounds…</p> : null}
       </aside>
       <div className="zone" key={sim.zone}>
         {sim.zone}

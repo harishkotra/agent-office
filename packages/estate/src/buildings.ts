@@ -134,6 +134,32 @@ export type Nearby = {
   z: number
 }
 
+export type DoorPhase = 'idle' | 'prompt' | 'opening' | 'open' | 'closing'
+
+const OPEN_TIME = 0.35
+
+export type DoorMotion = { phase: DoorPhase; elapsed: number }
+
+export const doorMotion = new Map<string, DoorPhase>()
+
+export function advanceDoor(state: DoorMotion, distance: number, pressed: boolean, dt: number): DoorMotion & { step: boolean } {
+  const prompted = state.phase !== 'idle'
+  const inRange = prompted ? distance < 3 : distance < 2.6
+  if ((state.phase === 'idle' || state.phase === 'prompt') && !inRange) return { phase: 'idle', elapsed: 0, step: false }
+  if (state.phase === 'idle' || state.phase === 'prompt') {
+    if (pressed) return { phase: 'opening', elapsed: 0, step: false }
+    return { phase: 'prompt', elapsed: 0, step: false }
+  }
+  const elapsed = state.elapsed + dt
+  if (state.phase === 'opening') {
+    if (elapsed >= OPEN_TIME) return { phase: 'open', elapsed: 0, step: true }
+    return { phase: 'opening', elapsed, step: false }
+  }
+  if (state.phase === 'open') return { phase: 'closing', elapsed: 0, step: false }
+  if (elapsed >= OPEN_TIME) return { phase: inRange ? 'prompt' : 'idle', elapsed: 0, step: false }
+  return { phase: 'closing', elapsed, step: false }
+}
+
 export function nearbyTarget(x: number, z: number, loaded: ReadonlySet<string>): Nearby | null {
   let best: Nearby | null = null
   let bestDist = Infinity
@@ -147,9 +173,9 @@ export function nearbyTarget(x: number, z: number, loaded: ReadonlySet<string>):
     }
     for (const door of building.doors) {
       const dist = Math.hypot(x - door.x, z - door.z)
-      if (dist < 2.6 && dist < bestDist) {
+      if (dist < 3 && dist < bestDist) {
         bestDist = dist
-        best = { id: door.id, kind: dist < 1.35 ? 'floor' : 'door', label: door.label, building, door, x: door.x, z: door.z }
+        best = { id: door.id, kind: 'door', label: door.label, building, door, x: door.x, z: door.z }
       }
     }
   }
@@ -169,18 +195,31 @@ export function promptText(kind: Nearby['kind'], key: string, inside: boolean): 
   return `Press ${key} to enter`
 }
 
+export function promptFor(kind: Nearby['kind'], key: string, place: string, inside: boolean): string {
+  if (kind === 'bookshelf') return `Press ${key} to open the family directory`
+  if (inside) return `Press ${key} to leave ${place}`
+  return `Press ${key} to enter ${place}`
+}
+
+function outsideDoor(door: Door): { x: number; z: number } {
+  return { x: door.x - door.inwardX * 2.2, z: door.z - door.inwardZ * 2.2 }
+}
+
 export const TRAVEL: TravelStop[] = [
   { id: 'gate', label: 'Front gate', x: 0, z: 82, yaw: Math.PI, zone: 'Front Gate' },
-  { id: 'mansion', label: 'Mansion door', x: 0, z: -14.2, yaw: faceYaw(0, -1), zone: 'Manor Porch' },
-  ...HOMES.map((building) => {
-    const door = building.doors[0]
-    return {
-      id: building.id,
-      label: building.label,
-      x: door.x - door.inwardX * 2.2,
-      z: door.z - door.inwardZ * 2.2,
-      yaw: faceYaw(door.inwardX, door.inwardZ),
-      zone: building.label,
-    }
-  }),
+  ...BUILDINGS.flatMap((building) =>
+    building.doors.map((door) => {
+      const spot = outsideDoor(door)
+      return {
+        id: door.id,
+        label: door.label,
+        x: spot.x,
+        z: spot.z,
+        yaw: faceYaw(door.inwardX, door.inwardZ),
+        zone: building.zone,
+      }
+    }),
+  ),
+  { id: 'mansion-hall', label: 'Mansion interior', x: 0, z: -28, yaw: faceYaw(0, -1), zone: 'Great Hall' },
+  { id: 'bookshelf', label: 'Bookshelf', x: MANSION.shelf?.x ?? 0, z: MANSION.shelf?.z ?? 0, yaw: faceYaw(0, -1), zone: 'Great Hall' },
 ]

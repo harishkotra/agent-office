@@ -13,6 +13,7 @@ import { CameraRig } from './CameraRig'
 import { LocalPlayer } from './Player'
 import { RemotePlayers } from './Remotes'
 import { EstateWorld } from './world'
+import { PlayMenus } from '../ui/PlayMenus'
 import { initPhysics } from '../physics'
 import { TUNING } from '../tuning'
 
@@ -117,6 +118,10 @@ export function EstateScene({
     sim.id = member.id
     let leavingLock = false
     const down = (event: KeyboardEvent) => {
+      if (event.code === 'KeyT') {
+        publishPlay({ travel: !play.travel })
+        return
+      }
       if (event.code === 'Escape' || event.code === 'KeyP') {
         if (play.directory) {
           publishPlay({ directory: false })
@@ -190,7 +195,8 @@ export function EstateScene({
   if (!webglOk()) {
     return (
       <div className="physics-wait">
-        <p>The 3D grounds could not start in this browser. Use Travel to… for a non-visual list of places.</p>
+        <p>The 3D grounds could not start in this browser.</p>
+        <PlayMenus />
       </div>
     )
   }

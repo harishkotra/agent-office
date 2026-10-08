@@ -9,7 +9,7 @@ import { MARK, zoneAt } from '../zones'
 import { bindingLabel, gamepadPressed, held, jumpHeldNow, settings } from '../settings'
 import { TUNING } from '../tuning'
 import { play, publishPlay, transit } from '../play'
-import { BUILDINGS, insideBuilding, nearbyTarget, promptText, stepThrough, syncInteriors } from '../buildings'
+import { BUILDINGS, advanceDoor, doorMotion, insideBuilding, nearbyTarget, promptFor, stepThrough, syncInteriors, type DoorMotion } from '../buildings'
 import { announce, blip, directionWord, placeCue, stereoPan, walkerCue } from '../cues'
 import { touch } from '../touch'
 
@@ -25,6 +25,7 @@ export function LocalPlayer({ name }: { name: string }) {
   const interactLatch = useRef(false)
   const zoneSeen = useRef(sim.zone)
   const near = useRef(new Set<string>())
+  const doorMove = useRef<DoorMotion>({ phase: 'idle', elapsed: 0 })
   const { world } = useRapier()
   const controller = useRef<ReturnType<typeof world.createCharacterController> | null>(null)
 
@@ -182,12 +183,14 @@ export function LocalPlayer({ name }: { name: string }) {
     pose.current.squash = nextMove.squash
     pose.current.lean = sim.lean
     const targetHit = nearbyTarget(target.x, target.z, new Set(syncInteriors(target.x, target.z)))
-    if (interact && targetHit) {
-      if (targetHit.kind === 'bookshelf') {
-        publishPlay({ directory: true, feedback: 'Opening the family directory', feedbackUntil: Date.now() + 1600 })
-        document.exitPointerLock()
-        announce('Family directory open.')
-      } else if (targetHit.door) {
+    let stepped = false
+    if (targetHit?.kind === 'door' && targetHit.door) {
+      const distance = Math.hypot(target.x - targetHit.x, target.z - targetHit.z)
+      const motion = advanceDoor(doorMove.current, distance, interact, world.timestep || TUNING.timestep)
+      doorMove.current = motion
+      doorMotion.set(targetHit.id, motion.phase)
+      stepped = motion.step
+      if (motion.step) {
         const step = stepThrough(target.x, target.z, targetHit.building, targetHit.door)
         const leaving = insideBuilding(target.x, target.z, targetHit.building)
         rb.setTranslation({ x: step.x, y: target.y, z: step.z }, true)
@@ -197,9 +200,17 @@ export function LocalPlayer({ name }: { name: string }) {
         const feedback = leaving ? 'Stepping outside' : `Entering ${targetHit.label}`
         publishPlay({ feedback, feedbackUntil: Date.now() + 1600 })
         announce(feedback)
+        blip(0)
+      }
+    } else {
+      doorMove.current = { phase: 'idle', elapsed: 0 }
+      if (interact && targetHit?.kind === 'bookshelf') {
+        publishPlay({ directory: true, feedback: 'Opening the family directory', feedbackUntil: Date.now() + 1600 })
+        document.exitPointerLock()
+        announce('Family directory open.')
       }
     }
-    const shown = targetHit ? { id: targetHit.id, kind: targetHit.kind, text: promptText(targetHit.kind, bindingLabel('interact'), targetHit.door ? insideBuilding(target.x, target.z, targetHit.building) : false) } : null
+    const shown = targetHit && !stepped ? { id: targetHit.id, kind: targetHit.kind, text: promptFor(targetHit.kind, bindingLabel('interact'), targetHit.label, targetHit.door ? insideBuilding(target.x, target.z, targetHit.building) : false) } : null
     if ((shown?.id || '') !== (play.prompt?.id || '') || shown?.text !== play.prompt?.text) {
       publishPlay({ prompt: shown })
       if (shown) {

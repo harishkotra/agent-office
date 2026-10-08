@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HOMES, MANSION, interiorsFor, nearbyTarget, promptText, shouldLoadInterior, stepThrough } from './buildings'
+import { BUILDINGS, HOMES, MANSION, TRAVEL, advanceDoor, interiorsFor, nearbyTarget, promptFor, shouldLoadInterior, stepThrough } from './buildings'
 
 describe('interiors', () => {
   it('names the homes and the mansion without a theme', () => {
@@ -22,9 +22,18 @@ describe('interiors', () => {
   it('asks you to press to enter, then steps through the door', () => {
     const rose = HOMES[0]
     const door = rose.doors[0]
-    const outside = nearbyTarget(door.x + 1.2, door.z, new Set(['rose']))
-    expect(outside?.kind).toBe('floor')
-    expect(promptText(outside!.kind, 'F', false)).toBe('Press F to enter')
+    const outside = nearbyTarget(door.x + 1.2, door.z, new Set(['home-1']))
+    expect(outside?.kind).toBe('door')
+    expect(promptFor(outside!.kind, 'F', outside!.label, false)).toBe('Press F to enter Home 1')
+    let motion = advanceDoor({ phase: 'prompt', elapsed: 0 }, 1.2, true, 0)
+    expect(motion.phase).toBe('opening')
+    expect(motion.step).toBe(false)
+    motion = advanceDoor(motion, 1.2, false, 0.35)
+    expect(motion.phase).toBe('open')
+    expect(motion.step).toBe(true)
+    const far = advanceDoor({ phase: 'prompt', elapsed: 0 }, 2.8, false, 0)
+    expect(far.phase).toBe('prompt')
+    expect(advanceDoor({ phase: 'idle', elapsed: 0 }, 2.8, false, 0).phase).toBe('idle')
     const inside = stepThrough(door.x + 1.2, door.z, rose, door)
     expect(inside.x).toBeLessThan(rose.maxX - 0.5)
     const back = stepThrough(inside.x, inside.z, rose, door)
@@ -35,6 +44,11 @@ describe('interiors', () => {
     expect(nearbyTarget(MANSION.shelf!.x, MANSION.shelf!.z, new Set())).toBeNull()
     const hit = nearbyTarget(MANSION.shelf!.x, MANSION.shelf!.z + 1, new Set(['mansion']))
     expect(hit?.kind).toBe('bookshelf')
-    expect(promptText('bookshelf', 'F', false)).toMatch(/family directory/)
+    expect(promptFor('bookshelf', 'F', 'the mansion', false)).toMatch(/family directory/)
+    const doors = BUILDINGS.flatMap((building) => building.doors.map((door) => door.id)).sort()
+    const listed = TRAVEL.map((stop) => stop.id).filter((id) => doors.includes(id)).sort()
+    expect(listed).toEqual(doors)
+    expect(TRAVEL.some((stop) => stop.id === 'bookshelf')).toBe(true)
+    expect(TRAVEL.some((stop) => stop.id === 'mansion-hall')).toBe(true)
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { loadFamilyDirectory } from '../directory'
 import { directoryCards, type DirectoryPerson } from '../directoryView'
 import { TRAVEL, type TravelStop } from '../buildings'
@@ -26,6 +26,9 @@ export function PlayMenus() {
         <button type="button" onClick={() => publishPlay({ travel: true })}>
           Travel to…
         </button>
+        <button type="button" onClick={() => publishPlay({ directory: true })}>
+          Family directory
+        </button>
         <button type="button" onClick={() => setPaused(true)}>
           Settings
         </button>
@@ -38,9 +41,45 @@ export function PlayMenus() {
   )
 }
 
+function useDialogFocus(close: () => void) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const root = ref.current
+    const controls = () => Array.from(root?.querySelectorAll<HTMLElement>('button, input, a[href], [tabindex]:not([tabindex="-1"])') ?? [])
+    controls()[0]?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' || ((event.key === 'b' || event.key === 'B') && !(event.target instanceof HTMLInputElement))) {
+        event.preventDefault()
+        close()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const list = controls()
+      if (!list.length) return
+      const first = list[0]
+      const last = list[list.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      previous?.focus()
+    }
+  }, [close])
+  return ref
+}
+
 function TravelMenu() {
+  const ref = useDialogFocus(() => publishPlay({ travel: false }))
   return (
-    <div className="pause-back" role="dialog" aria-modal="true" aria-labelledby="travel-title">
+    <div ref={ref} className="pause-back" role="dialog" aria-modal="true" aria-labelledby="travel-title">
       <section className="pause-card">
         <h2 id="travel-title">Travel to…</h2>
         <ul className="travel-list">
@@ -67,6 +106,7 @@ function go(stop: TravelStop) {
 }
 
 function PauseMenu() {
+  const ref = useDialogFocus(() => setPaused(false))
   useEffect(() => {
     if (!settings.listening) return
     const onKey = (event: KeyboardEvent) => {
@@ -79,7 +119,7 @@ function PauseMenu() {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [settings.listening, settings.revision])
   return (
-    <div className="pause-back" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+    <div ref={ref} className="pause-back" role="dialog" aria-modal="true" aria-labelledby="pause-title">
       <section className="pause-card">
         <h2 id="pause-title">Settings</h2>
         <ul className="key-list">
@@ -140,6 +180,7 @@ function PauseMenu() {
 }
 
 function DirectoryPanel() {
+  const ref = useDialogFocus(() => publishPlay({ directory: false }))
   const [people, setPeople] = useState<DirectoryPerson[]>([])
   const [query, setQuery] = useState('')
   const [error, setError] = useState('')
@@ -162,7 +203,7 @@ function DirectoryPanel() {
   }, [])
   const cards = directoryCards(people, query)
   return (
-    <div className="pause-back" role="dialog" aria-modal="true" aria-labelledby="directory-title">
+    <div ref={ref} className="pause-back" role="dialog" aria-modal="true" aria-labelledby="directory-title">
       <section className="pause-card directory-card">
         <h2 id="directory-title">Family directory</h2>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name" aria-label="Search by name" />
