@@ -231,25 +231,54 @@ a.btn { display: inline-block; text-align: center; text-decoration: none; }
 .directory-list article p { flex-basis: 100%; }
 .swatch { display: grid; place-items: center; width: 22px; height: 22px; color: #f7f1e6; font-size: 0.7rem; font-weight: 700; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.65); }
 
-.touch {
+.touch-layer {
   display: none;
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 64px;
-  justify-content: space-between;
-  align-items: end;
-  gap: 8px;
+  inset: 0;
   z-index: 4;
+  touch-action: none;
+}
+
+.touch-buttons {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  gap: 8px;
+  align-items: end;
   pointer-events: auto;
 }
 
+.touch-buttons button {
+  min-width: 48px;
+  min-height: 48px;
+  touch-action: none;
+}
+
+.touch-jump { width: 72px; height: 72px; }
+.touch-dive, .touch-use { width: 56px; height: 56px; }
+
 .stick {
+  position: absolute;
   width: 120px;
   height: 120px;
+  margin-left: -60px;
+  margin-top: -60px;
   border-radius: 50%;
   background: rgba(247, 241, 230, 0.35);
-  touch-action: none;
+  pointer-events: none;
+}
+
+.reset-ring {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  width: 48px;
+  height: 48px;
+  margin-left: -24px;
+  border-radius: 50%;
+  border: 2px solid #1d261c;
+  pointer-events: none;
 }
 
 html[data-font="small"] { --ui: 14px; }
@@ -260,7 +289,7 @@ html { font-size: var(--ui, 16px); }
 html[data-motion="reduce"] .zone { animation: none; }
 
 @media (pointer: coarse) {
-  .touch { display: flex; }
+  .touch-layer { display: block; }
 }
 
 @keyframes rise {

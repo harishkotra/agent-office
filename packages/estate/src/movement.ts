@@ -175,6 +175,16 @@ function steer(state: MoveState, tx: number, tz: number, maxDelta: number, stop:
   state.vz += (dz / delta) * maxDelta
 }
 
+export function snapYaw(current: number, target: number, dt: number, seconds = 0.25): number {
+  if (seconds <= 0) return target
+  let delta = target - current
+  while (delta > Math.PI) delta -= Math.PI * 2
+  while (delta < -Math.PI) delta += Math.PI * 2
+  const max = (Math.PI / seconds) * Math.max(dt, 0)
+  if (Math.abs(delta) <= max) return target
+  return current + Math.sign(delta) * max
+}
+
 export function smoothYaw(current: number, target: number, dt: number): number {
   let delta = target - current
   while (delta > Math.PI) delta -= Math.PI * 2
@@ -300,7 +310,8 @@ export function stepMove(prev: MoveState, input: MoveInput, groundedNow: boolean
   } else if (!diving) {
     const opposing = wishLen > 0.01 && s.vx * wx + s.vz * wz < 0
     const rate = groundedNow && !jumped ? (wishLen <= 0.01 || opposing ? STOP_ACCEL : GROUND_ACCEL) : AIR_ACCEL
-    steer(s, wx * (wishLen > 0.01 ? target : 0), wz * (wishLen > 0.01 ? target : 0), rate * dt, groundedNow && wishLen <= 0.01)
+    const scaled = Math.min(1, wishLen)
+    steer(s, wx * (wishLen > 0.01 ? target * scaled : 0), wz * (wishLen > 0.01 ? target * scaled : 0), rate * dt, groundedNow && wishLen <= 0.01)
   } else if (groundedNow) {
     const drop = 22 * dt
     const h = Math.hypot(s.vx, s.vz)

@@ -3,16 +3,17 @@ import { useFrame } from '@react-three/fiber'
 import { CapsuleCollider, RigidBody, useBeforePhysicsStep, useRapier, type RapierRigidBody } from '@react-three/rapier'
 import type { Group } from 'three'
 import { CharacterModel } from './CharacterModel'
-import { clipVelocity, initialMove, notePress, smoothYaw, stepMove, takePresses, wishFromKeys, type EdgeLatch, type MoveState } from '../movement'
+import { clipVelocity, initialMove, notePress, smoothYaw, snapYaw, stepMove, takePresses, wishFromKeys, type EdgeLatch, type MoveState } from '../movement'
 import { CAPSULE_CENTER, CAPSULE_HALF, CAPSULE_R, look, sim, type Pose } from '../sim'
 import { MARK, zoneAt } from '../zones'
-import { bindingLabel, gamepadPressed, held, jumpHeldNow, settings } from '../settings'
+import { bindingLabel, held, jumpHeldNow, setPaused, settings } from '../settings'
 import { TUNING } from '../tuning'
 import { clampPitch, recenterYaw } from '../camera'
 import { play, publishPlay, transit } from '../play'
 import { BUILDINGS, advanceDoor, doorMotion, insideBuilding, nearbyTarget, promptFor, stepThrough, syncInteriors, type DoorMotion } from '../buildings'
 import { announce, blip, directionWord, placeCue, stereoPan, walkerCue } from '../cues'
-import { touch } from '../touch'
+import { controlHold, touch } from '../touch'
+import { pollGamepad } from '../gamepad'
 
 function stickLooking(): boolean {
   if (typeof navigator === 'undefined' || !navigator.getGamepads) return false
@@ -36,6 +37,8 @@ export function LocalPlayer({ name }: { name: string }) {
   const speedRef = useRef(0)
   const interactPrev = useRef(false)
   const interactLatch = useRef(false)
+  const travelPrev = useRef(false)
+  const pausePrev = useRef(false)
   const zoneSeen = useRef(sim.zone)
   const near = useRef(new Set<string>())
   const doorMove = useRef<DoorMotion>({ phase: 'idle', elapsed: 0 })
@@ -62,13 +65,25 @@ export function LocalPlayer({ name }: { name: string }) {
     let lookY = look.dy
     look.dx = 0
     look.dy = 0
+    const pad = pollGamepad()
     const indoorsNow = BUILDINGS.some((building) => insideBuilding(sim.x, sim.z, building))
+    const touchYaw = touch.lookYaw
+    const touchPitch = touch.lookPitch
     sim.camYaw -= lookX * TUNING.lookPerPixel
+    sim.camYaw += touchYaw + pad.lookYaw * frame
+    touch.lookYaw = 0
     if (held(look.keys, 'lookLeft') || touch.lookLeft) sim.camYaw += TUNING.lookYawRate * frame
     if (held(look.keys, 'lookRight') || touch.lookRight) sim.camYaw -= TUNING.lookYawRate * frame
-    sim.camPitch = clampPitch(sim.camPitch + lookY * TUNING.lookPerPixel, indoorsNow)
+    const pitchInvert = settings.invertY ? -1 : 1
+    sim.camPitch = clampPitch(
+      sim.camPitch + lookY * TUNING.lookPerPixel + touchPitch + pad.lookPitch * frame * pitchInvert,
+      indoorsNow,
+    )
+    touch.lookPitch = 0
     const looking =
       Math.abs(lookX) + Math.abs(lookY) > 0 ||
+      Math.abs(touchYaw) + Math.abs(touchPitch) > 0 ||
+      Math.abs(pad.lookYaw) + Math.abs(pad.lookPitch) > 0 ||
       held(look.keys, 'lookLeft') ||
       held(look.keys, 'lookRight') ||
       touch.lookLeft ||
@@ -86,16 +101,27 @@ export function LocalPlayer({ name }: { name: string }) {
     ) {
       sim.camYaw = recenterYaw(sim.camYaw, sim.facing, frame)
     }
+    if ((pad.recenter || touch.recenter || held(look.keys, 'recenter')) && !settings.reducedMotion) {
+      sim.camYaw = snapYaw(sim.camYaw, sim.facing, frame)
+    } else if (pad.recenter || touch.recenter || held(look.keys, 'recenter')) {
+      sim.camYaw = sim.facing
+    }
 
     const blocked = settings.paused || play.directory || play.travel
-    const jump = !blocked && (held(look.keys, 'jump') || touch.jump)
-    const dive = !blocked && (held(look.keys, 'dive') || touch.dive)
+    const jump = !blocked && (held(look.keys, 'jump') || touch.jump || pad.jump)
+    const dive = !blocked && (held(look.keys, 'dive') || touch.dive || pad.dive)
     notePress(latch.current, jump, dive, prev.current)
-    const interact = !blocked && (held(look.keys, 'interact') || touch.interact)
+    const interact = !blocked && (held(look.keys, 'interact') || touch.interact || pad.interact)
     if (interact && !interactPrev.current) interactLatch.current = true
     interactPrev.current = interact
-    const resetDown = !settings.paused && held(look.keys, 'reset')
+    if (pad.travel && !travelPrev.current) publishPlay({ travel: !play.travel })
+    travelPrev.current = pad.travel
+    if (pad.pause && !pausePrev.current) setPaused(!settings.paused)
+    pausePrev.current = pad.pause
+    const resetDown = !settings.paused && (held(look.keys, 'reset') || pad.reset)
+    if (resetDown && resetHeld.current === 0) announce('Returning to the gate')
     resetHeld.current = resetDown ? resetHeld.current + frame : 0
+    controlHold.reset = resetDown ? Math.min(1, resetHeld.current / TUNING.resetHold) : 0
   })
 
   useBeforePhysicsStep(() => {
@@ -107,8 +133,22 @@ export function LocalPlayer({ name }: { name: string }) {
     sim.excludeBody = rb
 
     const blocked = settings.paused || play.directory || play.travel
-    const forward = blocked ? 0 : (held(look.keys, 'forward') || touch.y > 0.25 ? 1 : 0) - (held(look.keys, 'back') || touch.y < -0.25 ? 1 : 0)
-    const strafe = blocked ? 0 : (held(look.keys, 'right') || touch.x > 0.25 ? 1 : 0) - (held(look.keys, 'left') || touch.x < -0.25 ? 1 : 0)
+    const padMove = pollGamepad()
+    const keyForward = held(look.keys, 'forward') ? 1 : 0
+    const keyBack = held(look.keys, 'back') ? 1 : 0
+    const keyRight = held(look.keys, 'right') ? 1 : 0
+    const keyLeft = held(look.keys, 'left') ? 1 : 0
+    let forward = keyForward - keyBack
+    let strafe = keyRight - keyLeft
+    const finger = Math.hypot(touch.x, touch.y) > 0.05
+    if (forward === 0 && strafe === 0) {
+      forward = finger ? touch.y : padMove.y
+      strafe = finger ? touch.x : padMove.x
+    }
+    if (blocked) {
+      forward = 0
+      strafe = 0
+    }
     const wish = wishFromKeys(sim.camYaw, forward, strafe)
     const presses = takePresses(latch.current)
     const reset = resetHeld.current >= TUNING.resetHold
@@ -164,9 +204,9 @@ export function LocalPlayer({ name }: { name: string }) {
       {
         wishX: wish.x,
         wishZ: wish.z,
-        run: !blocked && (settings.runToggle ? settings.running : held(look.keys, 'run') || Math.hypot(touch.x, touch.y) >= 0.85),
+        run: !blocked && (settings.runToggle ? settings.running : held(look.keys, 'run') || Math.hypot(touch.x, touch.y) >= 0.85 || padMove.run),
         jumpPressed: presses.jumpPressed,
-        jumpHeld: jumpHeldNow(look.keys, touch.jump, gamepadPressed(0)),
+        jumpHeld: jumpHeldNow(look.keys, touch.jump, padMove.jump),
         divePressed: presses.divePressed,
         indoors,
         dt: world.timestep || TUNING.timestep,

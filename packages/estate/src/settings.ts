@@ -10,6 +10,8 @@ export type Action =
   | 'lookRight'
   | 'reset'
   | 'interact'
+  | 'travel'
+  | 'recenter'
 
 export const ACTION_LABELS: { id: Action; label: string }[] = [
   { id: 'forward', label: 'Walk forward' },
@@ -23,6 +25,8 @@ export const ACTION_LABELS: { id: Action; label: string }[] = [
   { id: 'lookRight', label: 'Look right' },
   { id: 'reset', label: 'Return to the gate' },
   { id: 'interact', label: 'Interact' },
+  { id: 'travel', label: 'Travel' },
+  { id: 'recenter', label: 'Recenter camera' },
 ]
 
 export type FontSize = 'small' | 'medium' | 'large'
@@ -38,7 +42,9 @@ const DEFAULT_BINDINGS: Record<Action, string[]> = {
   lookLeft: ['KeyQ'],
   lookRight: ['KeyE'],
   reset: ['KeyR'],
-  interact: ['KeyF'],
+  interact: ['KeyF', 'Enter'],
+  travel: ['KeyT'],
+  recenter: ['KeyZ'],
 }
 
 const STORAGE_KEY = 'estate-play'
@@ -220,17 +226,42 @@ export function listenFor(action: Action) {
   emit()
 }
 
+const REQUIRED: Action[] = ['forward', 'back', 'left', 'right', 'jump', 'interact']
+
+function reservedCode(code: string): boolean {
+  return (
+    code === 'Escape' ||
+    code === 'Tab' ||
+    code === 'F5' ||
+    code === 'F11' ||
+    code === 'F12' ||
+    code.startsWith('Control') ||
+    code.startsWith('Meta') ||
+    code.startsWith('Alt')
+  )
+}
+
 export function assignBinding(action: Action, code: string) {
-  if (code === 'Escape' || code === 'Tab' || code.startsWith('Control')) {
+  if (reservedCode(code)) {
     settings.listening = null
+    settings.bindingWarning = `${codeLabel(code)} stays free.`
     emit()
     return
   }
   let warning = ''
   for (const item of ACTION_LABELS) {
     if (item.id === action || !settings.bindings[item.id].includes(code)) continue
-    warning = `${codeLabel(code)} is already ${item.label}. It moved.`
-    settings.bindings[item.id] = settings.bindings[item.id].filter((bound) => bound !== code)
+    const left = settings.bindings[item.id].filter((bound) => bound !== code)
+    if (REQUIRED.includes(item.id) && left.length === 0) {
+      settings.listening = null
+      settings.bindingWarning = `${item.label} needs a key.`
+      emit()
+      return
+    }
+    warning = left.length
+      ? `${codeLabel(code)} was ${item.label}.`
+      : `${codeLabel(code)} was ${item.label}. ${item.label} is now unbound.`
+    settings.bindings[item.id] = left
   }
   const kept = settings.bindings[action].filter((bound) => bound !== code)
   settings.bindings[action] = [...kept, code].slice(-2)

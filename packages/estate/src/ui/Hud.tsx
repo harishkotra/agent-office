@@ -3,6 +3,7 @@ import { PlayMenus } from './PlayMenus'
 import { markerColor, markerInk, initials } from '../markers'
 import { controlLines, settings } from '../settings'
 import { sim } from '../sim'
+import { controlHold } from '../touch'
 
 function cssColor(value: string) {
   return /^#[0-9a-f]{6}$/.test(value) ? value : markerColor(value || 'walker')
@@ -93,6 +94,9 @@ export function Hud() {
         {sim.zone}
       </div>
       <canvas ref={map} className="minimap" width={180} height={180} aria-label="Map of the estate" />
+      {controlHold.reset > 0 ? (
+        <div className="reset-ring" role="status" aria-label="Returning to the gate" style={{ background: `conic-gradient(#1d261c ${controlHold.reset * 360}deg, transparent 0)` }} />
+      ) : null}
       <p className="hint">{controlLines().join(' · ')} · P settings</p>
       <PlayMenus />
     </div>

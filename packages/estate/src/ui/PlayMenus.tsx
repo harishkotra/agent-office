@@ -172,7 +172,7 @@ function PauseMenu() {
           <input type="checkbox" checked={settings.colorblind} onChange={(event) => patchOptions({ colorblind: event.target.checked })} /> Colorblind-safe markers
         </label>
         <label>
-          <input type="checkbox" checked={settings.spoken} onChange={(event) => patchOptions({ spoken: event.target.checked })} /> Spoken cues
+          <input type="checkbox" checked={settings.spoken} onChange={(event) => patchOptions({ spoken: event.target.checked })} /> Read cues aloud (for players without a screen reader)
         </label>
         <p className="fine">Dive is {bindingLabel('dive')}. Ctrl is left free so it does not close the tab.</p>
         {settings.bindingWarning ? <p className="error">{settings.bindingWarning}</p> : null}
@@ -259,37 +259,82 @@ function DirectoryPanel() {
   )
 }
 
+const LOOK_PER_PX = 0.005
+const STICK_RADIUS = 60
+
 function releaseStick() {
   touch.x = 0
   touch.y = 0
 }
 
 function TouchControls() {
+  const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null)
+  const stickId = useRef<number | null>(null)
+  const lookId = useRef<number | null>(null)
+
+  const endPointer = (event: { pointerId: number }) => {
+    if (event.pointerId === stickId.current) {
+      stickId.current = null
+      setOrigin(null)
+      releaseStick()
+    }
+    if (event.pointerId === lookId.current) lookId.current = null
+  }
+
   return (
-    <div className="touch">
-      <div
-        className="stick"
-        onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
-        onPointerMove={(event) => {
-          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
-          const rect = event.currentTarget.getBoundingClientRect()
-          touch.x = Math.max(-1, Math.min(1, ((event.clientX - rect.left) / rect.width) * 2 - 1))
-          touch.y = Math.max(-1, Math.min(1, 1 - ((event.clientY - rect.top) / rect.height) * 2))
-        }}
-        onPointerUp={releaseStick}
-        onPointerCancel={releaseStick}
-        onLostPointerCapture={releaseStick}
-        aria-label="Move"
-      />
-      <button type="button" onPointerDown={() => (touch.jump = true)} onPointerUp={() => (touch.jump = false)} onPointerCancel={() => (touch.jump = false)} onLostPointerCapture={() => (touch.jump = false)}>
-        Jump
-      </button>
-      <button type="button" onPointerDown={() => (touch.dive = true)} onPointerUp={() => (touch.dive = false)} onPointerCancel={() => (touch.dive = false)} onLostPointerCapture={() => (touch.dive = false)}>
-        Dive
-      </button>
-      <button type="button" onPointerDown={() => (touch.interact = true)} onPointerUp={() => (touch.interact = false)} onPointerCancel={() => (touch.interact = false)} onLostPointerCapture={() => (touch.interact = false)}>
-        Use
-      </button>
+    <div
+      className="touch-layer"
+      onPointerDown={(event) => {
+        if (event.target instanceof Element && event.target.closest('button')) return
+        const rect = event.currentTarget.getBoundingClientRect()
+        const localX = event.clientX - rect.left
+        event.currentTarget.setPointerCapture(event.pointerId)
+        if (localX < rect.width / 2) {
+          stickId.current = event.pointerId
+          setOrigin({ x: event.clientX, y: event.clientY })
+          touch.x = 0
+          touch.y = 0
+        } else {
+          lookId.current = event.pointerId
+        }
+      }}
+      onPointerMove={(event) => {
+        if (event.pointerId === stickId.current && origin) {
+          const dx = event.clientX - origin.x
+          const dy = event.clientY - origin.y
+          const mag = Math.hypot(dx, dy) || 1
+          const reach = Math.min(STICK_RADIUS, mag) / STICK_RADIUS
+          touch.x = (dx / mag) * reach
+          touch.y = -(dy / mag) * reach
+        }
+        if (event.pointerId === lookId.current) {
+          const invert = settings.invertY ? -1 : 1
+          touch.lookYaw -= event.movementX * LOOK_PER_PX * settings.sensitivity
+          touch.lookPitch += event.movementY * LOOK_PER_PX * settings.sensitivity * invert
+        }
+      }}
+      onPointerUp={endPointer}
+      onPointerCancel={endPointer}
+      onLostPointerCapture={endPointer}
+    >
+      {origin ? <div className="stick" style={{ left: origin.x, top: origin.y }} aria-hidden="true" /> : null}
+      <div className="touch-buttons">
+        <button type="button" className="touch-small" onPointerDown={() => publishPlay({ travel: true })}>
+          Travel
+        </button>
+        <button type="button" className="touch-small" onPointerDown={() => setPaused(true)}>
+          Menu
+        </button>
+        <button type="button" className="touch-use" onPointerDown={() => (touch.interact = true)} onPointerUp={() => (touch.interact = false)} onPointerCancel={() => (touch.interact = false)} onLostPointerCapture={() => (touch.interact = false)}>
+          Use
+        </button>
+        <button type="button" className="touch-dive" onPointerDown={() => (touch.dive = true)} onPointerUp={() => (touch.dive = false)} onPointerCancel={() => (touch.dive = false)} onLostPointerCapture={() => (touch.dive = false)}>
+          Dive
+        </button>
+        <button type="button" className="touch-jump" onPointerDown={() => (touch.jump = true)} onPointerUp={() => (touch.jump = false)} onPointerCancel={() => (touch.jump = false)} onLostPointerCapture={() => (touch.jump = false)}>
+          Jump
+        </button>
+      </div>
     </div>
   )
 }

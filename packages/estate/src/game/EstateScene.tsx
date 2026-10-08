@@ -16,6 +16,7 @@ import { EstateWorld } from './world'
 import { PlayMenus } from '../ui/PlayMenus'
 import { initPhysics } from '../physics'
 import { TUNING } from '../tuning'
+import { touch } from '../touch'
 
 function coarseScreen() {
   return window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820
@@ -120,10 +121,6 @@ export function EstateScene({
     sim.id = member.id
     let leavingLock = false
     const down = (event: KeyboardEvent) => {
-      if (event.code === 'KeyT') {
-        publishPlay({ travel: !play.travel })
-        return
-      }
       if (event.code === 'Escape' || event.code === 'KeyP') {
         if (play.directory) {
           publishPlay({ directory: false })
@@ -145,6 +142,10 @@ export function EstateScene({
         settings.running = !settings.running
       }
       const typing = event.target instanceof HTMLElement && (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA')
+      if (!typing && !settings.listening && settings.bindings.travel.includes(event.code)) {
+        publishPlay({ travel: !play.travel })
+        return
+      }
       if (typing || settings.paused || settings.listening || play.directory || play.travel) return
       look.keys[event.code] = true
       if (event.code.startsWith('Arrow') || event.code === 'Space') event.preventDefault()
@@ -152,9 +153,17 @@ export function EstateScene({
     const up = (event: KeyboardEvent) => {
       look.keys[event.code] = false
     }
+    const pointerDown = (event: PointerEvent) => {
+      if (event.button !== 1) return
+      event.preventDefault()
+      touch.recenter = true
+    }
+    const pointerUp = (event: PointerEvent) => {
+      if (event.button === 1) touch.recenter = false
+    }
     const move = (event: PointerEvent) => {
       const target = event.target
-      if (target instanceof Element && target.closest('.touch')) return
+      if (target instanceof Element && target.closest('.touch-layer, .touch')) return
       if (document.pointerLockElement || (event.buttons & 1) === 1) {
         const sens = settings.sensitivity
         const invert = settings.invertY ? -1 : 1
@@ -175,15 +184,20 @@ export function EstateScene({
     }
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
+    window.addEventListener('pointerdown', pointerDown)
+    window.addEventListener('pointerup', pointerUp)
     window.addEventListener('pointermove', move)
     window.addEventListener('blur', clear)
     document.addEventListener('pointerlockchange', onLock)
     return () => {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
+      window.removeEventListener('pointerdown', pointerDown)
+      window.removeEventListener('pointerup', pointerUp)
       window.removeEventListener('pointermove', move)
       window.removeEventListener('blur', clear)
       document.removeEventListener('pointerlockchange', onLock)
+      touch.recenter = false
       clear()
     }
   }, [member.color, member.id, member.name])

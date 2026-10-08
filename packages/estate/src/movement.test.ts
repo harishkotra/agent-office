@@ -252,6 +252,16 @@ describe('stepMove', () => {
     settings.bindings.jump = previous
   })
 
+  it('walks slower when the stick is only part way over', () => {
+    let full = initialMove()
+    let half = initialMove()
+    for (let i = 0; i < 30; i++) {
+      full = frame(full, { wishZ: -1, run: false }, true)
+      half = frame(half, { wishZ: -0.4, run: false }, true)
+    }
+    expect(Math.hypot(half.vx, half.vz)).toBeLessThan(Math.hypot(full.vx, full.vz) * 0.7)
+  })
+
   it('steers less in the air than on the ground', () => {
     const ground = frame(initialMove(), { wishX: 1, wishZ: 0 }, true)
     const air = frame(initialMove(), { wishX: 1, wishZ: 0 }, false)
