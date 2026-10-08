@@ -22,7 +22,8 @@ export function profileDisplayName(row: ProfileName | null | undefined) {
 
 export function accountMessage(error?: string) {
   if (error === 'auth') return 'Family sign-in could not be checked. Sign in again on the family site.'
-  if (error === 'signin') return 'Sign in on the family site to walk the grounds.'
+  if (error === 'signin') return 'Sign in on the family site to visit the estate.'
+  if (error === 'phone') return 'Confirm your phone on the family site before walking the grounds.'
   if (error === 'name') return 'This profile has no name yet.'
   return 'This account is not on the site member list.'
 }

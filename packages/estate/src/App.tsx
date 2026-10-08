@@ -6,16 +6,36 @@ import { Gate } from './ui/Gate'
 import { Hud } from './ui/Hud'
 import { colorFor } from './family'
 import { sim } from './sim'
-import { PRESENCE_OFFLINE_TEXT, presenceRejection, PROFILE_MISMATCH_TEXT } from './wait'
+import { PHONE_TEXT, PRESENCE_OFFLINE_TEXT, nextRetry, presenceRejection, PROFILE_MISMATCH_TEXT } from './wait'
 
-function Waiting({ mode }: { mode: 'connecting' | 'offline' | 'profile' }) {
-  const title = mode === 'offline' ? PRESENCE_OFFLINE_TEXT : mode === 'profile' ? PROFILE_MISMATCH_TEXT : 'Checking your account…'
+function Waiting({ mode, onRetry }: { mode: 'connecting' | 'offline' | 'profile' | 'phone'; onRetry: () => void }) {
+  const [left, setLeft] = useState(8)
+  useEffect(() => {
+    if (mode !== 'offline') return
+    setLeft(8)
+    const timer = window.setInterval(() => {
+      setLeft((current) => {
+        const next = nextRetry(current)
+        if (next === 0) onRetry()
+        return next === 0 ? 8 : next
+      })
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [mode, onRetry])
+  const title = mode === 'offline' ? PRESENCE_OFFLINE_TEXT : mode === 'profile' ? PROFILE_MISMATCH_TEXT : mode === 'phone' ? PHONE_TEXT : 'Checking your account…'
   return (
     <main className="gate">
       <section className="gate-card">
         <p className="eyebrow">The McCowan Family Estate</p>
         <h1>{title}</h1>
-        {mode === 'offline' ? <p className="lede">The grounds stay closed until family presence is back.</p> : null}
+        {mode === 'offline' ? (
+          <>
+            <p className="lede" role="status">Trying again in {left}s. The grounds stay closed until family presence is back.</p>
+            <button type="button" className="btn btn-solid" onClick={onRetry}>
+              Try now
+            </button>
+          </>
+        ) : null}
       </section>
     </main>
   )
@@ -26,10 +46,10 @@ export function App() {
   const [admitted, setAdmitted] = useState(false)
   const [notice, setNotice] = useState('')
   const [booting, setBooting] = useState(true)
-  const [wait, setWait] = useState<'connecting' | 'offline' | 'profile'>('connecting')
+  const [wait, setWait] = useState<'connecting' | 'offline' | 'profile' | 'phone'>('connecting')
+  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setBooting(false), 3500)
     restoreSession()
       .then((found) => {
         if (found) {
@@ -49,7 +69,6 @@ export function App() {
         setNotice(message)
       })
       .finally(() => {
-        window.clearTimeout(timer)
         setBooting(false)
       })
   }, [])
@@ -68,8 +87,9 @@ export function App() {
     sim.id = ''
     sim.roster = []
     setAdmitted(false)
-    if (presenceRejection(message) === 'profile') {
-      setWait('profile')
+    const reason = presenceRejection(message)
+    if (reason === 'profile' || reason === 'phone') {
+      setWait(reason)
       return
     }
     setWait('connecting')
@@ -86,7 +106,7 @@ export function App() {
       <main className="gate">
         <section className="gate-card">
           <p className="eyebrow">The McCowan Family Estate</p>
-          <h1>Opening the gate…</h1>
+          <h1>Checking your account…</h1>
         </section>
       </main>
     )
@@ -112,8 +132,8 @@ export function App() {
 
   return (
     <div className={admitted ? 'game' : undefined}>
-      <EstateScene member={member} admitted={admitted} onWelcome={onWelcome} onReject={onReject} onStatus={onStatus} />
-      {admitted ? <Hud /> : <Waiting mode={wait} />}
+      <EstateScene member={member} admitted={admitted} onWelcome={onWelcome} onReject={onReject} onStatus={onStatus} retry={retry} />
+      {admitted ? <Hud /> : <Waiting mode={wait} onRetry={() => setRetry((current) => current + 1)} />}
     </div>
   )
 }

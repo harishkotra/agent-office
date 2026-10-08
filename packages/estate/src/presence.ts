@@ -119,6 +119,7 @@ export function usePresence(
   onWelcome: (member: Member) => void,
   onReject?: (message: string) => void,
   onStatus?: (status: 'connecting' | 'offline') => void,
+  retry = 0,
 ) {
   const memberRef = useRef(member)
   const welcomeRef = useRef(onWelcome)
@@ -252,5 +253,5 @@ export function usePresence(
       sim.roster = []
       sim.status = 'offline'
     }
-  }, [member.token])
+  }, [member.token, retry])
 }
