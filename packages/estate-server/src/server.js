@@ -127,7 +127,7 @@ export async function dropExpired(room, verify = verifyFamilyToken, now = Date.n
   return changed
 }
 
-export function bindSocket(socket, room, wss) {
+export function bindSocket(socket, room, _wss) {
   socket.isAlive = true
   socket.on('pong', () => {
     socket.isAlive = true
