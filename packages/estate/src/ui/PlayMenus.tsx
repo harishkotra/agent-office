@@ -3,7 +3,8 @@ import { loadFamilyDirectory } from '../directory'
 import { directoryCards, type DirectoryPerson } from '../directoryView'
 import { TRAVEL, type TravelStop } from '../buildings'
 import { play, publishPlay, requestTravel, subscribePlay } from '../play'
-import { ACTION_LABELS, assignBinding, bindingLabel, listenFor, patchOptions, resetSettings, setPaused, settings, subscribeSettings } from '../settings'
+import { ACTION_LABELS, assignBinding, bindingLabel, controlLines, listenFor, patchOptions, resetSettings, setPaused, settings, subscribeSettings } from '../settings'
+import { FAMILY_SITE } from '../family'
 import { touch } from '../touch'
 import { announce } from '../cues'
 
@@ -106,6 +107,7 @@ function go(stop: TravelStop) {
 }
 
 function PauseMenu() {
+  const [help, setHelp] = useState(false)
   const ref = useDialogFocus(() => setPaused(false))
   useEffect(() => {
     if (!settings.listening) return
@@ -121,7 +123,30 @@ function PauseMenu() {
   return (
     <div ref={ref} className="pause-back" role="dialog" aria-modal="true" aria-labelledby="pause-title">
       <section className="pause-card">
-        <h2 id="pause-title">Settings</h2>
+        <h2 id="pause-title">Paused</h2>
+        <div className="pause-actions">
+          <button type="button" className="btn btn-solid" onClick={() => setPaused(false)}>
+            Resume
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setPaused(false)
+              publishPlay({ travel: true })
+            }}
+          >
+            Travel to…
+          </button>
+          <button type="button" className="btn" onClick={() => setHelp((open) => !open)}>
+            Controls help
+          </button>
+          <button type="button" className="btn" onClick={() => window.location.assign(FAMILY_SITE)}>
+            Leave the estate
+          </button>
+        </div>
+        {help ? <p className="fine">{controlLines().join(' · ')}</p> : null}
+        <h3>Settings</h3>
         <ul className="key-list">
           {ACTION_LABELS.map((action) => (
             <li key={action.id}>
@@ -170,9 +195,6 @@ function PauseMenu() {
         </label>
         <button type="button" className="btn" onClick={() => resetSettings()}>
           Reset
-        </button>
-        <button type="button" className="btn btn-solid" onClick={() => setPaused(false)}>
-          Resume
         </button>
       </section>
     </div>

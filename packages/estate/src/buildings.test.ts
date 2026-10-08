@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDINGS, HOMES, MANSION, TRAVEL, advanceDoor, interiorsFor, nearbyTarget, promptFor, shouldLoadInterior, stepThrough } from './buildings'
+import { BUILDINGS, HOMES, MANSION, TRAVEL, advanceDoor, doorStep, interiorsFor, nearbyTarget, promptFor, shouldLoadInterior, stepThrough } from './buildings'
 
 describe('interiors', () => {
   it('names the homes and the mansion without a theme', () => {
@@ -24,7 +24,7 @@ describe('interiors', () => {
     const door = rose.doors[0]
     const outside = nearbyTarget(door.x + 1.2, door.z, new Set(['home-1']))
     expect(outside?.kind).toBe('door')
-    expect(promptFor(outside!.kind, 'F', outside!.label, false)).toBe('Press F to enter Home 1')
+    expect(promptFor(outside!.kind, 'F', outside!.label, false)).toBe('[F] Open door: Home 1 ●')
     let motion = advanceDoor({ phase: 'prompt', elapsed: 0 }, 1.2, true, 0)
     expect(motion.phase).toBe('opening')
     expect(motion.step).toBe(false)
@@ -38,6 +38,11 @@ describe('interiors', () => {
     expect(inside.x).toBeLessThan(rose.maxX - 0.5)
     const back = stepThrough(inside.x, inside.z, rose, door)
     expect(back.x).toBeGreaterThan(rose.maxX)
+    let held = doorStep({ phase: 'open', elapsed: 0 }, 1.2, false, 0.5)
+    expect(held.phase).toBe('open')
+    held = doorStep({ phase: 'open', elapsed: 0 }, 4, false, 2)
+    expect(held.phase).toBe('closing')
+    expect(doorStep({ phase: 'closing', elapsed: 0.1 }, 1, false, 0.1).phase).toBe('opening')
   })
 
   it('offers the mansion bookshelf only while the interior is loaded', () => {

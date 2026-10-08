@@ -126,7 +126,7 @@ export function homeZone(x: number, z: number): string | null {
 
 export type Nearby = {
   id: string
-  kind: 'door' | 'floor' | 'bookshelf'
+  kind: 'door' | 'bookshelf'
   label: string
   building: Building
   door?: Door
@@ -137,14 +137,15 @@ export type Nearby = {
 export type DoorPhase = 'idle' | 'prompt' | 'opening' | 'open' | 'closing'
 
 const OPEN_TIME = 0.35
+const HOLD_OPEN = 2
 
 export type DoorMotion = { phase: DoorPhase; elapsed: number }
 
 export const doorMotion = new Map<string, DoorPhase>()
 
-export function advanceDoor(state: DoorMotion, distance: number, pressed: boolean, dt: number): DoorMotion & { step: boolean } {
+export function doorStep(state: DoorMotion, distance: number, pressed: boolean, dt: number): DoorMotion & { step: boolean } {
   const prompted = state.phase !== 'idle'
-  const inRange = prompted ? distance < 3 : distance < 2.6
+  const inRange = prompted ? distance <= 3 : distance <= 2.6
   if ((state.phase === 'idle' || state.phase === 'prompt') && !inRange) return { phase: 'idle', elapsed: 0, step: false }
   if (state.phase === 'idle' || state.phase === 'prompt') {
     if (pressed) return { phase: 'opening', elapsed: 0, step: false }
@@ -155,9 +156,18 @@ export function advanceDoor(state: DoorMotion, distance: number, pressed: boolea
     if (elapsed >= OPEN_TIME) return { phase: 'open', elapsed: 0, step: true }
     return { phase: 'opening', elapsed, step: false }
   }
-  if (state.phase === 'open') return { phase: 'closing', elapsed: 0, step: false }
+  if (state.phase === 'open') {
+    if (distance <= 3) return { phase: 'open', elapsed: 0, step: false }
+    if (elapsed >= HOLD_OPEN) return { phase: 'closing', elapsed: 0, step: false }
+    return { phase: 'open', elapsed, step: false }
+  }
+  if (distance <= 1.2 || pressed) return { phase: 'opening', elapsed: 0, step: false }
   if (elapsed >= OPEN_TIME) return { phase: inRange ? 'prompt' : 'idle', elapsed: 0, step: false }
   return { phase: 'closing', elapsed, step: false }
+}
+
+export function advanceDoor(state: DoorMotion, distance: number, pressed: boolean, dt: number): DoorMotion & { step: boolean } {
+  return doorStep(state, distance, pressed, dt)
 }
 
 export function nearbyTarget(x: number, z: number, loaded: ReadonlySet<string>): Nearby | null {
@@ -195,10 +205,19 @@ export function promptText(kind: Nearby['kind'], key: string, inside: boolean): 
   return `Press ${key} to enter`
 }
 
+function doorGlyph(place: string): string {
+  if (place.startsWith('Home 1')) return '●'
+  if (place.startsWith('Home 2')) return '▲'
+  if (place.startsWith('Home 3')) return '■'
+  if (place.startsWith('Home 4')) return '◆'
+  if (place.startsWith('Home 5')) return '⬢'
+  return '★'
+}
+
 export function promptFor(kind: Nearby['kind'], key: string, place: string, inside: boolean): string {
-  if (kind === 'bookshelf') return `Press ${key} to open the family directory`
-  if (inside) return `Press ${key} to leave ${place}`
-  return `Press ${key} to enter ${place}`
+  if (kind === 'bookshelf') return `[${key}] Open the family directory`
+  if (inside) return `[${key}] Step outside`
+  return `[${key}] Open door: ${place} ${doorGlyph(place)}`
 }
 
 function outsideDoor(door: Door): { x: number; z: number } {

@@ -1,6 +1,6 @@
 export type Prompt = {
   id: string
-  kind: 'door' | 'floor' | 'bookshelf'
+  kind: 'door' | 'bookshelf'
   text: string
 }
 

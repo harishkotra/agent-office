@@ -197,7 +197,7 @@ export function LocalPlayer({ name }: { name: string }) {
         rb.setNextKinematicTranslation({ x: step.x, y: target.y, z: step.z })
         sim.x = step.x
         sim.z = step.z
-        const feedback = leaving ? 'Stepping outside' : `Entering ${targetHit.label}`
+        const feedback = leaving ? `Outside ${targetHit.label}.` : `Door open. ${targetHit.label}, ground floor.`
         publishPlay({ feedback, feedbackUntil: Date.now() + 1600 })
         announce(feedback)
         blip(0)
@@ -215,7 +215,7 @@ export function LocalPlayer({ name }: { name: string }) {
       publishPlay({ prompt: shown })
       if (shown) {
         const dir = directionWord(sim.camYaw, target.x, target.z, shown.kind === 'bookshelf' ? targetHit!.x : targetHit!.x, targetHit!.z)
-        announce(placeCue(shown.kind, dir, targetHit!.label))
+        announce(placeCue(shown.kind, dir, targetHit!.label, bindingLabel('interact')))
         blip(stereoPan(sim.camYaw, target.x, target.z, targetHit!.x, targetHit!.z))
       }
     }

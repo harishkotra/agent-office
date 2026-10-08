@@ -18,10 +18,9 @@ export function stereoPan(yaw: number, x: number, z: number, tx: number, tz: num
   return Math.max(-1, Math.min(1, right / dist))
 }
 
-export function placeCue(kind: 'door' | 'floor' | 'bookshelf', dir: string, label: string): string {
-  if (kind === 'bookshelf') return `Bookshelf ${dir}. Press to open the family directory.`
-  if (kind === 'floor') return `Floor marker ${dir}. Press to enter ${label}.`
-  return `Door ${dir}. Press to enter ${label}.`
+export function placeCue(kind: 'door' | 'bookshelf', dir: string, label: string, key = 'F'): string {
+  if (kind === 'bookshelf') return `Bookshelf ${dir}. Press ${key} to open the family directory.`
+  return `Door ${dir}: ${label}. Press ${key} to open.`
 }
 
 export function walkerCue(name: string, dir: string): string {
