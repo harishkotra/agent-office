@@ -7,12 +7,14 @@ export type Prompt = {
 export const transit = {
   x: null as number | null,
   z: null as number | null,
+  yaw: Math.PI,
   zone: '',
 }
 
-export function requestTravel(x: number, z: number, zone: string) {
+export function requestTravel(x: number, z: number, zone: string, yaw = Math.PI) {
   transit.x = x
   transit.z = z
+  transit.yaw = yaw
   transit.zone = zone
 }
 

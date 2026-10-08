@@ -1,21 +1,24 @@
+import { TUNING } from './tuning'
+
 export type Anim = 'idle' | 'walk' | 'run' | 'jump' | 'fall' | 'dive'
 
-export const WALK_SPEED = 3.45
-export const RUN_SPEED = 7.85
-export const GROUND_ACCEL = 50
-export const STOP_ACCEL = 72
-export const AIR_ACCEL = 14
+export const WALK_SPEED = TUNING.walkSpeed
+export const RUN_SPEED = TUNING.runSpeed
+export const GROUND_ACCEL = TUNING.groundAccel
+export const STOP_ACCEL = TUNING.stopAccel
+export const AIR_ACCEL = TUNING.airAccel
+export const AIR_BRAKE = TUNING.airBrake
 export const FRICTION = STOP_ACCEL
-export const GRAVITY = 26
-export const FALL_GRAVITY = 38
-export const JUMP_V = [8.6, 10.4, 12.6] as const
-export const COYOTE = 0.12
-export const JUMP_BUFFER = 0.12
-export const CHAIN_WINDOW = 0.32
-export const TERMINAL = -30
-export const DIVE_SPEED = 12.2
-export const DIVE_TIME = 0.48
-export const PHYSICS_DT = 1 / 60
+export const GRAVITY = TUNING.gravity
+export const FALL_GRAVITY = TUNING.fallGravity
+export const JUMP_V = TUNING.jumpV
+export const COYOTE = TUNING.coyote
+export const JUMP_BUFFER = TUNING.jumpBuffer
+export const CHAIN_WINDOW = TUNING.chainWindow
+export const TERMINAL = TUNING.terminal
+export const DIVE_SPEED = TUNING.diveSpeed
+export const DIVE_TIME = TUNING.diveTime
+export const PHYSICS_DT = TUNING.timestep
 
 export type EdgeLatch = {
   jump: boolean
@@ -66,6 +69,7 @@ export function travelDistance(hz: number, seconds: number): number {
           jumpPressed: presses.jumpPressed,
           jumpHeld: false,
           divePressed: presses.divePressed,
+          indoors: false,
           dt: PHYSICS_DT,
         },
         true,
@@ -104,6 +108,7 @@ export type MoveInput = {
   jumpPressed: boolean
   jumpHeld: boolean
   divePressed: boolean
+  indoors: boolean
   dt: number
 }
 
@@ -118,6 +123,7 @@ export type MoveState = {
   sinceLand: number
   diveLeft: number
   jumpHeld: boolean
+  diveUsed: boolean
   anim: Anim
   squash: number
 }
@@ -134,6 +140,7 @@ export function initialMove(): MoveState {
     sinceLand: 999,
     diveLeft: 0,
     jumpHeld: false,
+    diveUsed: false,
     anim: 'idle',
     squash: 1,
   }
@@ -226,7 +233,7 @@ export function stepMove(prev: MoveState, input: MoveInput, groundedNow: boolean
   const wx = wishLen > 0 ? input.wishX / wishLen : 0
   const wz = wishLen > 0 ? input.wishZ / wishLen : 0
 
-  if (input.divePressed && s.diveLeft <= 0) {
+  if (input.divePressed && s.diveLeft <= 0 && !s.diveUsed) {
     const hx = s.vx
     const hz = s.vz
     const h = Math.hypot(hx, hz)
@@ -238,6 +245,7 @@ export function stepMove(prev: MoveState, input: MoveInput, groundedNow: boolean
       s.vz = (dz / len) * DIVE_SPEED
       s.vy = Math.min(s.vy, 2)
       s.diveLeft = DIVE_TIME
+      s.diveUsed = true
     }
   }
 
@@ -245,7 +253,7 @@ export function stepMove(prev: MoveState, input: MoveInput, groundedNow: boolean
   const canJump = groundedNow || s.coyote > 0
   if (s.jumpBuffer > 0 && canJump) {
     let level = 1
-    if (groundedNow && s.chain > 0 && s.sinceLand <= CHAIN_WINDOW) {
+    if (!input.indoors && groundedNow && s.chain > 0 && s.sinceLand <= CHAIN_WINDOW) {
       level = Math.min(3, s.chain + 1)
     }
     s.chain = level
@@ -258,6 +266,7 @@ export function stepMove(prev: MoveState, input: MoveInput, groundedNow: boolean
     s.jumpBuffer = 0
     s.coyote = 0
     s.diveLeft = 0
+    s.diveUsed = false
     s.grounded = false
     jumped = true
   }
@@ -277,8 +286,20 @@ export function stepMove(prev: MoveState, input: MoveInput, groundedNow: boolean
   if (groundedNow && s.vy < 0 && !jumped) s.vy = 0
 
   const target = input.run ? RUN_SPEED : WALK_SPEED
-  if (!diving) {
-    const rate = groundedNow && !jumped ? (wishLen > 0.01 ? GROUND_ACCEL : STOP_ACCEL) : AIR_ACCEL
+  if (!diving && !groundedNow && wishLen <= 0.01) {
+    const speed = Math.hypot(s.vx, s.vz)
+    const drop = AIR_BRAKE * dt
+    if (speed <= drop) {
+      s.vx = 0
+      s.vz = 0
+    } else {
+      const keep = (speed - drop) / speed
+      s.vx *= keep
+      s.vz *= keep
+    }
+  } else if (!diving) {
+    const opposing = wishLen > 0.01 && s.vx * wx + s.vz * wz < 0
+    const rate = groundedNow && !jumped ? (wishLen <= 0.01 || opposing ? STOP_ACCEL : GROUND_ACCEL) : AIR_ACCEL
     steer(s, wx * (wishLen > 0.01 ? target : 0), wz * (wishLen > 0.01 ? target : 0), rate * dt, groundedNow && wishLen <= 0.01)
   } else if (groundedNow) {
     const drop = 22 * dt

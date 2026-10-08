@@ -61,7 +61,7 @@ function TravelMenu() {
 }
 
 function go(stop: TravelStop) {
-  requestTravel(stop.x, stop.z, stop.zone)
+  requestTravel(stop.x, stop.z, stop.zone, stop.yaw)
   publishPlay({ travel: false, feedback: `Traveling to ${stop.label}`, feedbackUntil: Date.now() + 1600 })
   announce(`Traveling to ${stop.label}.`)
 }

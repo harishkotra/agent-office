@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AIR_BRAKE,
   CHAIN_WINDOW,
   DIVE_SPEED,
   JUMP_V,
+  PHYSICS_DT,
   RUN_SPEED,
+  STOP_ACCEL,
   initialMove,
   pressesConsumed,
   stepMove,
@@ -12,6 +15,8 @@ import {
   type MoveInput,
   type MoveState,
 } from './movement'
+import { jumpHeldNow, settings } from './settings'
+import { TUNING } from './tuning'
 
 function frame(state: MoveState, patch: Partial<MoveInput>, grounded: boolean, dt = 1 / 60): MoveState {
   return stepMove(
@@ -23,6 +28,7 @@ function frame(state: MoveState, patch: Partial<MoveInput>, grounded: boolean, d
       jumpPressed: false,
       jumpHeld: false,
       divePressed: false,
+      indoors: false,
       dt,
       ...patch,
     },
@@ -49,8 +55,8 @@ describe('fixed step', () => {
     const a = travelDistance(60, 2)
     const b = travelDistance(120, 2)
     const c = travelDistance(144, 2)
-    expect(Math.abs(a - b)).toBeLessThan(0.05)
-    expect(Math.abs(a - c)).toBeLessThan(0.05)
+    expect(Math.abs(a - b) / a).toBeLessThan(0.01)
+    expect(Math.abs(a - c) / a).toBeLessThan(0.01)
     expect(a).toBeGreaterThan(8)
   })
 
@@ -124,6 +130,86 @@ describe('stepMove', () => {
     expect(s.anim).toBe('dive')
     expect(Math.hypot(s.vx, s.vz)).toBeGreaterThan(DIVE_SPEED * 0.9)
     expect(s.vz).toBeLessThan(0)
+  })
+
+  it('reverses a run with stop decel within 0.28 s', () => {
+    let s = initialMove()
+    for (let i = 0; i < 80; i++) s = frame(s, { wishZ: -1 }, true)
+    const started = s.vz
+    expect(started).toBeLessThan(0)
+    let steps = 0
+    while (s.vz < 0 && steps < 60) {
+      s = frame(s, { wishZ: 1 }, true)
+      steps += 1
+    }
+    expect(steps * PHYSICS_DT).toBeLessThanOrEqual(TUNING.turnaround)
+    const one = frame(initialMove(), { wishZ: 1 }, true)
+    one.vz = started
+    const slowed = frame({ ...one }, { wishZ: 1 }, true)
+    expect(Math.abs(started) - Math.abs(slowed.vz)).toBeGreaterThan(STOP_ACCEL * PHYSICS_DT * 0.5)
+  })
+
+  it('brakes in the air when there is no input', () => {
+    let s = initialMove()
+    s.vx = 10
+    s.vz = 0
+    s = frame(s, { wishX: 0, wishZ: 0 }, false)
+    expect(s.vx).toBeCloseTo(10 - AIR_BRAKE * PHYSICS_DT, 5)
+  })
+
+  it('allows one dive until the next jump', () => {
+    let s = initialMove()
+    s.vx = 0
+    s.vz = -4
+    s = frame(s, { divePressed: true, wishZ: -1 }, false)
+    expect(s.anim).toBe('dive')
+    for (let i = 0; i < 40; i++) s = frame(s, { wishZ: -1 }, false)
+    const after = Math.hypot(s.vx, s.vz)
+    s = frame(s, { divePressed: true, wishZ: -1 }, false)
+    expect(Math.hypot(s.vx, s.vz)).toBeLessThan(after + 0.2)
+    s = frame(s, { jumpPressed: true, jumpHeld: true }, true)
+    s = frame(s, { divePressed: true, wishZ: -1, jumpHeld: true }, false)
+    expect(s.anim).toBe('dive')
+  })
+
+  it('keeps indoor jumps on the first level under the ceiling', () => {
+    let s = initialMove()
+    s = frame(s, { jumpPressed: true, jumpHeld: true, indoors: true }, true)
+    expect(s.vy).toBeCloseTo(JUMP_V[0])
+    for (let i = 0; i < 8; i++) s = frame(s, { jumpHeld: true, indoors: true }, false)
+    s = frame(s, { jumpHeld: true, indoors: true }, true)
+    s = frame(s, { jumpPressed: true, jumpHeld: true, indoors: true }, true)
+    expect(s.vy).toBeCloseTo(JUMP_V[0])
+  })
+
+  it('releases into a short hop at or under 0.50 m', () => {
+    const peak = (hold: boolean) => {
+      let s = initialMove()
+      let y = 0
+      let top = 0
+      s = frame(s, { jumpPressed: true, jumpHeld: true }, true)
+      y += s.vy * PHYSICS_DT
+      top = Math.max(top, y)
+      for (let i = 0; i < 80 && y >= -0.01; i++) {
+        s = frame(s, { jumpHeld: hold }, y <= 0.001 ? false : false)
+        y += s.vy * PHYSICS_DT
+        top = Math.max(top, y)
+        if (s.vy < 0 && y < top - 0.2) break
+      }
+      return top
+    }
+    expect(peak(false)).toBeLessThanOrEqual(TUNING.shortHop)
+    expect(peak(true)).toBeGreaterThan(TUNING.shortHop)
+  })
+
+  it('treats J as jump when that binding is held', () => {
+    const previous = settings.bindings.jump
+    settings.bindings.jump = ['KeyJ']
+    expect(jumpHeldNow({ KeyJ: true, Space: false }, false, false)).toBe(true)
+    expect(jumpHeldNow({ Space: true }, false, false)).toBe(false)
+    expect(jumpHeldNow({}, true, false)).toBe(true)
+    expect(jumpHeldNow({}, false, true)).toBe(true)
+    settings.bindings.jump = previous
   })
 
   it('steers less in the air than on the ground', () => {

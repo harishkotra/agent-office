@@ -89,6 +89,18 @@ export function held(keys: Record<string, boolean>, action: Action): boolean {
   return settings.bindings[action].some((code) => keys[code])
 }
 
+export function gamepadPressed(button: number): boolean {
+  if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return false
+  for (const pad of navigator.getGamepads()) {
+    if (pad?.buttons[button]?.pressed) return true
+  }
+  return false
+}
+
+export function jumpHeldNow(keys: Record<string, boolean>, touchJump: boolean, padJump: boolean): boolean {
+  return held(keys, 'jump') || touchJump || padJump
+}
+
 function applyDom() {
   if (typeof document === 'undefined') return
   document.documentElement.dataset.font = settings.font

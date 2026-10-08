@@ -5,6 +5,7 @@ import type { RigidBody } from '@dimforge/rapier3d-compat'
 import { Vector3 } from 'three'
 import { sim } from '../sim'
 import { settings } from '../settings'
+import { TUNING, cameraBlend } from '../tuning'
 
 export function CameraRig() {
   const { camera } = useThree()
@@ -14,11 +15,18 @@ export function CameraRig() {
   if (!ball.current) ball.current = new rapier.Ball(0.32)
 
   useFrame((_, dt) => {
-    const blend = settings.reducedMotion ? 1 : 1 - Math.pow(0.0008, Math.min(dt, 0.05))
-    follow.current.x += (sim.x - follow.current.x) * blend
-    follow.current.y += (sim.y - follow.current.y) * blend
-    follow.current.z += (sim.z - follow.current.z) * blend
-    const distance = 6.5
+    const span = Math.max((world.timestep || TUNING.timestep) * 1000, 1)
+    const alpha = Math.min(1, Math.max(0, (performance.now() - sim.steppedAt) / span))
+    const poseX = sim.prevX + (sim.x - sim.prevX) * alpha
+    const poseY = sim.prevY + (sim.y - sim.prevY) * alpha
+    const poseZ = sim.prevZ + (sim.z - sim.prevZ) * alpha
+    const held = sim.anim === 'jump' || sim.anim === 'fall' || sim.anim === 'dive'
+    const followY = held ? sim.camHoldY : poseY
+    const blend = settings.reducedMotion ? 1 : cameraBlend(Math.min(dt, 0.05))
+    follow.current.x += (poseX - follow.current.x) * blend
+    follow.current.y += (followY - follow.current.y) * blend
+    follow.current.z += (poseZ - follow.current.z) * blend
+    const distance = sim.indoors ? TUNING.cameraIndoor : TUNING.cameraOutdoor
     const lookY = follow.current.y + 0.42
     const flat = Math.cos(sim.camPitch)
     const wantX = follow.current.x + Math.sin(sim.camYaw) * distance * flat
@@ -54,7 +62,11 @@ export function CameraRig() {
         aimZ = origin.z + (dz / len) * pull
       }
     }
-    camera.position.set(aimX, aimY, aimZ)
+    const ease = cameraBlend(Math.min(dt, 0.05))
+    const targetDist = Math.hypot(aimX - origin.x, aimY - origin.y, aimZ - origin.z)
+    sim.camDist += (targetDist - sim.camDist) * ease
+    const placed = len > 0.001 ? sim.camDist / len : 1
+    camera.position.set(origin.x + dx * placed, origin.y + dy * placed, origin.z + dz * placed)
     camera.lookAt(follow.current.x, lookY, follow.current.z)
   })
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { BUILDINGS, HOMES, syncInteriors } from '../buildings'
+import { BUILDINGS, HOMES, insideBuilding, syncInteriors } from '../buildings'
 import { sim } from '../sim'
 import { Box, Solid } from './primitives'
 
@@ -59,7 +59,9 @@ function House({ index, buildingId, interior }: { index: number; buildingId: str
       <Solid position={[door.x, h / 2, (minZ + doorZ0) / 2]} size={[0.4, h, doorZ0 - minZ]} color={wall} />
       <Solid position={[door.x, h / 2, (doorZ1 + maxZ) / 2]} size={[0.4, h, maxZ - doorZ1]} color={wall} />
       <Solid position={[door.x, 2.9, cz]} size={[0.4, h - 2.4, 1.6]} color={wall} />
-      <Solid position={[cx, h + 0.2, cz]} size={[maxX - minX + 0.8, 0.35, maxZ - minZ + 0.8]} color={roof} />
+      {interior && insideBuilding(sim.x, sim.z, building) ? null : (
+        <Solid position={[cx, h + 0.2, cz]} size={[maxX - minX + 0.8, 0.35, maxZ - minZ + 0.8]} color={roof} />
+      )}
       {interior ? (
         <>
           <Box position={[cx, 0.04, cz]} size={[8.2, 0.05, 6.2]} color="#c4a27a" />

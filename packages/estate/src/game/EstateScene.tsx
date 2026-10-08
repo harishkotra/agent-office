@@ -14,6 +14,7 @@ import { LocalPlayer } from './Player'
 import { RemotePlayers } from './Remotes'
 import { EstateWorld } from './world'
 import { initPhysics } from '../physics'
+import { TUNING } from '../tuning'
 
 function coarseScreen() {
   return window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820
@@ -196,7 +197,7 @@ export function EstateScene({
       <hemisphereLight args={['#e7f2ff', '#6ea85a', 0.62]} />
       <ambientLight intensity={0.22} />
       <Sun />
-      <Physics gravity={[0, 0, 0]} timeStep={1 / 60}>
+      <Physics gravity={[0, 0, 0]} timeStep={TUNING.timestep}>
         <EstateWorld />
         <LocalPlayer name={member.name} />
         <RemotePlayers />

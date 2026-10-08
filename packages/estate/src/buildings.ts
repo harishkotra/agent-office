@@ -27,7 +27,12 @@ export type TravelStop = {
   label: string
   x: number
   z: number
+  yaw: number
   zone: string
+}
+
+function faceYaw(x: number, z: number): number {
+  return Math.atan2(x, z)
 }
 
 function home(id: string, label: string, cx: number, cz: number, facing: 'east' | 'west'): Building {
@@ -165,8 +170,8 @@ export function promptText(kind: Nearby['kind'], key: string, inside: boolean): 
 }
 
 export const TRAVEL: TravelStop[] = [
-  { id: 'gate', label: 'Front gate', x: 0, z: 82, zone: 'Front Gate' },
-  { id: 'mansion', label: 'Mansion door', x: 0, z: -14.2, zone: 'Manor Porch' },
+  { id: 'gate', label: 'Front gate', x: 0, z: 82, yaw: Math.PI, zone: 'Front Gate' },
+  { id: 'mansion', label: 'Mansion door', x: 0, z: -14.2, yaw: faceYaw(0, -1), zone: 'Manor Porch' },
   ...HOMES.map((building) => {
     const door = building.doors[0]
     return {
@@ -174,6 +179,7 @@ export const TRAVEL: TravelStop[] = [
       label: building.label,
       x: door.x - door.inwardX * 2.2,
       z: door.z - door.inwardZ * 2.2,
+      yaw: faceYaw(door.inwardX, door.inwardZ),
       zone: building.label,
     }
   }),
