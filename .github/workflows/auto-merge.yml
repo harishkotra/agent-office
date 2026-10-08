@@ -1,0 +1,112 @@
+name: Auto-merge
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-merge-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: >-
+      vars.AUTO_MERGE_ENABLED == 'true' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const { owner, repo } = context.repo;
+            const full = `${owner}/${repo}`;
+
+            async function readMain(path) {
+              const { data } = await github.rest.repos.getContent({ owner, repo, path, ref: 'main' });
+              return Buffer.from(data.content, 'base64').toString('utf8');
+            }
+            const cfg = JSON.parse(await readMain('.github/auto-merge/config.json'));
+            const globs = (await readMain('.github/auto-merge/protected-paths.txt'))
+              .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+            if (!globs.length || !cfg.allowedBranchPrefixes?.length) return core.setFailed('auto-merge config missing');
+
+            const toRe = g => new RegExp('^' + g
+              .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+              .replace(/\*\*\//g, '\u0000')
+              .replace(/\*\*/g, '\u0001')
+              .replace(/\*/g, '[^/]*')
+              .replace(/\?/g, '[^/]')
+              .replace(/\u0000/g, '(?:.*/)?')
+              .replace(/\u0001/g, '.*') + '$');
+            const res = globs.map(toRe);
+            const isProtected = p => res.some(r => r.test(p));
+            const stop = why => core.info(`skip: ${why}`);
+
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: 'open', base: cfg.baseBranch, head: `${owner}:${run.head_branch}`,
+            });
+            if (prs.length !== 1) return stop('no single open PR for this run');
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prs[0].number });
+
+            if (pr.head.repo?.full_name !== full || pr.base.repo.full_name !== full) return stop('fork');
+            if (!cfg.allowedBranchPrefixes.some(p => pr.head.ref.startsWith(p))) return stop('branch prefix');
+            const authors = cfg.allowedAuthors ?? [];
+            if (authors.length && !authors.includes(pr.user.login)) return stop('author not allowed');
+            if (pr.draft) return stop('draft');
+            if (pr.base.ref !== cfg.baseBranch) return stop('base is not main');
+            if (pr.labels.some(l => l.name === cfg.holdLabel)) return stop('hold label');
+            if (pr.head.sha !== run.head_sha) return stop('head moved since CI');
+
+            const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: pr.number, per_page: 100 });
+            if (files.length >= 3000) return stop('too many files');
+            for (const f of files) {
+              if (f.filename === cfg.roadmapPath || f.previous_filename === cfg.roadmapPath) {
+                if (!checkboxOnly(f)) return stop('roadmap change is not a single checkbox tick');
+                continue;
+              }
+              if (isProtected(f.filename) || (f.previous_filename && isProtected(f.previous_filename))) {
+                return stop('protected path');
+              }
+            }
+            if (pr.mergeable === false) return failOnce();
+
+            try {
+              await github.rest.pulls.merge({ owner, repo, pull_number: pr.number, sha: run.head_sha, merge_method: 'squash' });
+              core.info(`merged #${pr.number}`);
+            } catch (e) {
+              return failOnce();
+            }
+
+            function checkboxOnly(f) {
+              if (f.status !== 'modified' || !f.patch) return false;
+              if (f.additions !== 1 || f.deletions !== 1) return false;
+              const body = f.patch.split('\n').filter(l => !l.startsWith('@@') && !l.startsWith('\\'));
+              const minus = body.filter(l => l.startsWith('-')).map(l => l.slice(1));
+              const plus = body.filter(l => l.startsWith('+')).map(l => l.slice(1));
+              if (minus.length !== 1 || plus.length !== 1) return false;
+              const [a, b] = [minus[0], plus[0]];
+              if (!a.startsWith('- [ ] ') || a.length !== b.length) return false;
+              const diffs = [...a].reduce((n, ch, i) => n + (ch !== b[i] ? 1 : 0), 0);
+              return diffs === 1 && b.startsWith('- [x] ');
+            }
+
+            async function failOnce() {
+              const mark = `<!-- estate-auto-merge:${run.head_sha} -->`;
+              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: pr.number });
+              if (comments.some(c => c.body?.includes(mark))) return;
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: pr.number,
+                body: `${mark}\nAuto-merge could not merge this PR at ${run.head_sha.slice(0, 7)}. ` +
+                      'It may conflict with `main`. Please rebase; auto-merge will try again after CI passes.',
+              });
+            }

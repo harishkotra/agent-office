@@ -55,6 +55,8 @@ packages/estate-server/**
 .github/**
 # Leak-test scripts and leak-test fixtures / test data
 packages/estate/src/ciGuard.test.ts
+packages/estate/src/securityScan*.ts
+packages/estate/src/pathGuard*.ts
 **/*.leak.test.*
 scripts/leak/**
 **/leak-fixtures/**
@@ -69,6 +71,7 @@ scripts/leak/**
 **/eslint.config.*
 **/vitest.config.*
 **/vite.config.*
+**/vite.*config.*
 **/tsconfig*.json
 # Pages: scripts and SRI hashes live here
 **/index.html
@@ -78,6 +81,9 @@ scripts/leak/**
 **/wrangler.jsonc
 **/.dev.vars*
 docs/auto-merge-spec.md
+.gitleaks.toml
+.gitignore
+**/.env*
 # docs/estate-roadmap.md is handled by the special rule in section 4.3
 ```
 

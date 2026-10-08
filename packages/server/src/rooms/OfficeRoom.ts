@@ -206,7 +206,7 @@ export class OfficeRoom extends Room<OfficeState> {
         return 'alice'; // fallback
     }
 
-    async update(delta: number) {
+    async update(_delta: number) {
         if (Math.random() < 0.02) {
             console.log(`[Server] Agents: ${this.state.agents.size} | Session: ${this.sessionId}`);
         }
@@ -741,7 +741,7 @@ export class OfficeRoom extends Room<OfficeState> {
         };
     }
 
-    onJoin(client: Client, options: any) {
+    onJoin(client: Client, _options: any) {
         console.log(client.sessionId, "joined the office room!");
         // Send existing tasks to newly joined client
         this.memoryStore.getTasks().then(tasks => {
@@ -751,7 +751,7 @@ export class OfficeRoom extends Room<OfficeState> {
         client.send('layout-sync', { name: 'default', layout: this.currentLayout });
     }
 
-    onLeave(client: Client, consented: boolean) {
+    onLeave(client: Client, _consented: boolean) {
         console.log(client.sessionId, "left the office room!");
     }
 

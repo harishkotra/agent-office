@@ -6,12 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:perf": "vite build --config vite.perf.config.ts",
     "preview": "vite preview --host --port 4174",
     "test": "vitest run"
   },
   "dependencies": {
     "@react-three/drei": "^9.117.3",
     "@react-three/fiber": "^8.17.10",
+    "@dimforge/rapier3d-compat": "0.14.0",
     "@react-three/rapier": "^1.5.0",
     "@supabase/supabase-js": "^2.45.4",
     "react": "^18.3.1",

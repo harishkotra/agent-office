@@ -71,14 +71,17 @@ A PR that adds, changes, renames or deletes any of these is opened as a **draft*
 - the `fund_stats` read code (keep it in one file named `fundStats.ts` so it can be matched)
 - any `*.sql` file
 - `.github/**` (workflows, the auto-merge config, the protected-path list)
-- the leak tests and their scripts (today `packages/estate/src/ciGuard.test.ts`; new ones are named `*.leak.test.*`; helper scripts live in `scripts/leak/`)
+- the leak tests and their scripts (today `packages/estate/src/ciGuard.test.ts`, `packages/estate/src/securityScan*.ts`, and `packages/estate/src/pathGuard*.ts`; new ones are named `*.leak.test.*`; helper scripts live in `scripts/leak/`)
 - leak-test fixtures and test data (kept in a `leak-fixtures/` folder or named `*.leak.fixture.*`)
 - any `package.json`, `package-lock.json` or other lockfile, and `.npmrc` (new or changed dependencies)
-- lint, type and test config that could switch checks off: ESLint config files, any `tsconfig*.json`, `vitest.config.*`, `vite.config.*`
+- lint, type and test config that could switch checks off: ESLint config files, any `tsconfig*.json`, `vitest.config.*`, `vite.config.*`, and `vite.*config.*`
 - any `index.html` (scripts and SRI hashes live there)
 - `wrangler.toml` / `wrangler.json(c)` and any other Cloudflare Worker config, including `.dev.vars*` (the Worker code itself lives under `packages/estate-server/`)
 - `docs/estate-roadmap.md` rules sections (A, B, C and E). The only change to this file that can auto-merge is a diff of exactly one `- [ ]` → `- [x]` with no other character changed; it may ride along with the task's own allowed files.
 - `docs/auto-merge-spec.md`
+- `.gitleaks.toml`
+- `.gitignore`
+- any `.env*` file
 
 ---
 
@@ -146,7 +149,7 @@ A PR that adds, changes, renames or deletes any of these is opened as a **draft*
 Take the first unchecked task that is not blocked (section A, step 3). "Draft" means the task touches protected paths.
 
 ### Setup
-- [ ] **0. CI PR** (in progress, draft PR #5). Lockfile, ESLint, lint + tsc + vitest, leak tests, secret scan, SRI/self-host check, Playwright as a pinned exact-version `devDependency` (Chromium only, installed only inside the CI job, read-only token, no secrets), and the auto-merge workflow, as described in `docs/auto-merge-spec.md`. Draft; Security Bot reviews this first. Nothing auto-merges until this is merged.
+- [x] **0. CI PR** (in progress, draft PR #5). Lockfile, ESLint, lint + tsc + vitest, leak tests, secret scan, SRI/self-host check, Playwright as a pinned exact-version `devDependency` (Chromium only, installed only inside the CI job, read-only token, no secrets), and the auto-merge workflow, as described in `docs/auto-merge-spec.md`. Draft; Security Bot reviews this first. Nothing auto-merges until this is merged.
 - [ ] **0a. Performance script.** A `scripts/perf` tool that builds a separate perf page (its own entry or page), opens it in headless Chromium via Playwright, and renders the grounds plus one home interior using made-up data. Playwright is added in the CI PR (task 0 / #5) as a `devDependency` with an exact pinned version; only Chromium is installed, and only inside the CI job, which uses a read-only token and no secrets. Because the package lands in #5, this task does not touch `package.json` and stays auto-merge eligible. If it ever needs any other new dependency, it becomes a protected draft. The perf page is a separate build target that only the CI job builds; the live build and the Pages/Worker deploy never include it. It contains no Supabase client or keys at all, not even the public anon/publishable key, and runs only on made-up data — not a test-mode entry that skips sign-in. It reports the numbers in section A (bundle size, draw calls, triangles, leak check). Not protected; auto-merges. It must not touch a protected file (for example `auth.ts`, `vite.config.*`, `index.html`); if it has to, that part goes in a separate draft PR.
 - [ ] **0b. Sign-in gate: draft PR #6** (replaces draft PR #3). Keep working in #6; do not open another PR. #6 must include: (1) `localhost` allowed as an origin only in development builds, and (2) join rate limits keyed on `CF-Connecting-IP` in the Cloudflare version. Draft, protected. Security Bot reviews it after #5. Once #6 has both items, #3 gets closed by the owner or a bot (Cursor may close it if it can, with a one-line comment pointing to #6).
 

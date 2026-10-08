@@ -1,0 +1,41 @@
+# Must match docs/estate-roadmap.md section B. This file is itself protected (.github/**).
+packages/estate-server/**
+**/auth.ts
+**/presence.ts
+**/snapshot.ts
+**/directory.ts
+**/fundStats.ts
+**/*.sql
+.github/**
+# Leak-test scripts and leak-test fixtures / test data
+packages/estate/src/ciGuard.test.ts
+packages/estate/src/securityScan*.ts
+packages/estate/src/pathGuard*.ts
+**/*.leak.test.*
+scripts/leak/**
+**/leak-fixtures/**
+**/*.leak.fixture.*
+**/package.json
+**/package-lock.json
+**/npm-shrinkwrap.json
+**/yarn.lock
+**/pnpm-lock.yaml
+**/.npmrc
+**/.eslintrc*
+**/eslint.config.*
+**/vitest.config.*
+**/vite.config.*
+**/vite.*config.*
+**/tsconfig*.json
+# Pages: scripts and SRI hashes live here
+**/index.html
+# Cloudflare Worker config
+**/wrangler.toml
+**/wrangler.json
+**/wrangler.jsonc
+**/.dev.vars*
+docs/auto-merge-spec.md
+.gitleaks.toml
+.gitignore
+**/.env*
+# docs/estate-roadmap.md is handled by the special rule in section 4.3

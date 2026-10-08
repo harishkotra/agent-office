@@ -202,7 +202,7 @@ Rules:
         return { thought: "Systems recovering...", action: "idle" };
     }
 
-    async act(decision: Decision): Promise<ActionResult> {
+    async act(_decision: Decision): Promise<ActionResult> {
         this.status = 'ACTING';
         return { success: true };
     }

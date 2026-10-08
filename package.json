@@ -8,7 +8,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint . --ext .ts,.tsx,.js",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "dev": "npm run dev --workspaces --if-present",
     "start": "sh -c 'npm run start --workspace=@agent-office/server & SERVER_PID=$!; npm run dev --workspace=@agent-office/ui; kill $SERVER_PID'",
@@ -17,13 +17,14 @@
     "estate:client": "npm run dev --workspace=@agent-office/estate"
   },
   "devDependencies": {
-    "typescript": "^5.4.2",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.1.2",
     "@types/jest": "^29.5.12",
-    "eslint": "^8.57.0",
-    "@typescript-eslint/parser": "^7.1.1",
     "@typescript-eslint/eslint-plugin": "^7.1.1",
-    "prettier": "^3.2.5"
+    "@typescript-eslint/parser": "^7.1.1",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "playwright": "1.64.0",
+    "prettier": "^3.2.5",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.4.2"
   }
 }

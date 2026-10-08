@@ -3,6 +3,7 @@ node_modules/
 
 # Build outputs
 dist/
+dist-perf/
 *.tsbuildinfo
 
 # Environment
@@ -46,9 +47,6 @@ ollama/
 LINKEDIN_POST.md
 BLOG.md
 X_THREAD.md
-
-# Lockfiles (regenerated on install)
-package-lock.json
 
 # Docusaurus build
 docs/.docusaurus/
