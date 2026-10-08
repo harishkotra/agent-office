@@ -2,6 +2,10 @@ import { createClient, type Session } from '@supabase/supabase-js'
 import { FAMILY_SITE, SUPABASE_ANON_KEY, SUPABASE_URL } from './family'
 import { accountMessage, profileDisplayName, type ProfileName } from './profileName'
 
+export function requirePhoneVerified(data: unknown, error: unknown) {
+  if (error || data !== true) throw new Error(accountMessage('phone'))
+}
+
 export type Member = {
   id: string
   name: string
@@ -26,6 +30,8 @@ async function memberFromSession(session: Session): Promise<Member> {
   if (error) throw new Error(accountMessage('profile'))
   const name = profileDisplayName(data as ProfileName | null)
   if (!data || !name) throw new Error(data ? accountMessage('name') : accountMessage('profile'))
+  const { data: phone, error: phoneError } = await sb().rpc('am_i_phone_verified')
+  requirePhoneVerified(phone, phoneError)
   return {
     id: user.id,
     name,
@@ -36,12 +42,6 @@ async function memberFromSession(session: Session): Promise<Member> {
 export async function restoreSession(): Promise<Member | null> {
   const { data } = await sb().auth.getSession()
   if (!data.session) return null
-  return memberFromSession(data.session)
-}
-
-export async function signIn(email: string, password: string): Promise<Member> {
-  const { data, error } = await sb().auth.signInWithPassword({ email: email.trim(), password })
-  if (error || !data.session) throw new Error(error?.message || accountMessage('auth'))
   return memberFromSession(data.session)
 }
 

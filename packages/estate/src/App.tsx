@@ -128,21 +128,7 @@ export function App() {
   }
 
   if (!member) {
-    return (
-      <Gate
-        notice={notice}
-        onEnter={(next) => {
-          setNotice('')
-          setAdmitted(false)
-          sim.name = next.name
-          sim.color = colorFor(next.id)
-          sim.guest = false
-          sim.id = ''
-          setWait('connecting')
-          setMember(next)
-        }}
-      />
-    )
+    return <Gate notice={notice} />
   }
 
   return (

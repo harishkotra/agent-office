@@ -3,16 +3,13 @@ import type { Anim } from './movement'
 import { currentToken, type Member } from './auth'
 import { colorFor, presenceUrl } from './family'
 import { pushSample, type Track } from './netpose'
+import { readSnapshot, readWelcome } from './snapshot'
 import { sim, type RosterEntry } from './sim'
 
-const TAB_KEY = 'mccowan-estate-tab'
+const pageTab = crypto.randomUUID()
 
 function tabId() {
-  const existing = sessionStorage.getItem(TAB_KEY)
-  if (existing && /^[\w-]{8,64}$/.test(existing)) return existing
-  const next = crypto.randomUUID()
-  sessionStorage.setItem(TAB_KEY, next)
-  return next
+  return pageTab
 }
 
 export type RemoteBody = {
@@ -30,28 +27,6 @@ export type RemoteBody = {
 
 export const net = {
   remotes: new Map<string, RemoteBody>(),
-}
-
-type Welcome = {
-  t: 'welcome'
-  id: string
-  name: string
-  color: string
-}
-
-type Snapshot = {
-  t: 'snapshot'
-  players: {
-    id: string
-    name: string
-    color: string
-    x: number
-    y: number
-    z: number
-    yaw: number
-    anim: Anim
-    zone: string
-  }[]
 }
 
 function publishRoster() {
@@ -88,10 +63,11 @@ function publishRoster() {
   sim.roster = roster
 }
 
-function applySnapshot(message: Snapshot) {
+function applySnapshot(message: unknown) {
+  const players = readSnapshot(message, sim.id)
+  if (!players) return
   const seen = new Set<string>()
-  for (const player of message.players) {
-    if (player.id === sim.id) continue
+  for (const player of players) {
     seen.add(player.id)
     const existing = net.remotes.get(player.id)
     const sample = { x: player.x, y: player.y, z: player.z, yaw: player.yaw, t: performance.now() / 1000 }
@@ -138,6 +114,7 @@ export function usePresence(
     let delay = 600
     let sendTimer = 0
     let presenceTimer = 0
+    let retryTimer = 0
     const person = memberRef.current
     sim.name = person.name
     sim.guest = false
@@ -164,11 +141,17 @@ export function usePresence(
       sim.status = 'connecting'
       if (!welcomed) statusRef.current?.(failed ? 'offline' : 'connecting')
       const token = (await currentToken()) || memberRef.current.token
+      if (stopped) return
       if (!token) {
         rejectRef.current?.('Sign in on the family site to walk the grounds.')
         return
       }
+      if (stopped) return
       const ws = new WebSocket(presenceUrl())
+      if (stopped) {
+        ws.close()
+        return
+      }
       socket = ws
       ws.onopen = () => {
         delay = 600
@@ -190,7 +173,8 @@ export function usePresence(
         }
         if (!message) return
         if (message.t === 'welcome') {
-          const welcome = message as Welcome
+          const welcome = readWelcome(message)
+          if (!welcome) return
           welcomed = true
           failed = false
           sim.id = welcome.id
@@ -205,7 +189,7 @@ export function usePresence(
           })
           publishRoster()
         } else if (message.t === 'snapshot') {
-          applySnapshot(message as Snapshot)
+          applySnapshot(message)
         } else if (message.t === 'replaced') {
           stopped = true
           sim.status = 'offline'
@@ -218,9 +202,12 @@ export function usePresence(
         }
       }
       ws.onclose = (event) => {
-        if (stopped || event.code === 4000) {
+        if (stopped || event.code === 4000 || event.code === 4001) {
           stopped = true
           sim.status = 'offline'
+          if (event.code === 4001) {
+            rejectRef.current?.('Your session ended. Sign in again on the family site.')
+          }
           return
         }
         sim.status = 'offline'
@@ -228,7 +215,8 @@ export function usePresence(
           failed = true
           statusRef.current?.('offline')
         }
-        window.setTimeout(connect, delay)
+        const wait = delay + Math.floor(Math.random() * 250)
+        retryTimer = window.setTimeout(connect, wait)
         delay = Math.min(8000, delay * 2)
       }
       ws.onerror = () => {
@@ -248,6 +236,7 @@ export function usePresence(
       stopped = true
       window.clearInterval(sendTimer)
       window.clearInterval(presenceTimer)
+      window.clearTimeout(retryTimer)
       socket?.close()
       net.remotes.clear()
       sim.roster = []

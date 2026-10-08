@@ -43,9 +43,11 @@ export function formatMemberName(
 export function allowedOrigin(origin: string): boolean {
   if (origin === 'https://mccowanestate.com' || origin === 'https://www.mccowanestate.com') return true
   if (origin === 'https://jerichothewall.github.io') return true
+  if (!import.meta.env.DEV) return false
   try {
     const url = new URL(origin)
-    return url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+    const host = url.hostname
+    return host === 'localhost' || host === '127.0.0.1'
   } catch {
     return false
   }

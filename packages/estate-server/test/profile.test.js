@@ -21,4 +21,5 @@ test('a blank profile is not given a made-up name', () => {
   assert.equal(profileDisplayName(null), '')
   assert.match(accountMessage('profile'), /site member list/)
   assert.match(accountMessage('name'), /no name/)
+  assert.match(accountMessage('phone'), /phone/i)
 })

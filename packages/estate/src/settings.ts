@@ -41,7 +41,22 @@ const DEFAULT_BINDINGS: Record<Action, string[]> = {
   interact: ['KeyF'],
 }
 
-const STORAGE_KEY = 'mccowan-estate-play'
+const STORAGE_KEY = 'estate-play'
+const PREVIOUS_STORAGE_KEY = 'mccowan-estate-play'
+
+function readPlaySettings(): string | null {
+  const current = localStorage.getItem(STORAGE_KEY)
+  if (current) return current
+  const previous = localStorage.getItem(PREVIOUS_STORAGE_KEY)
+  if (!previous) return null
+  try {
+    localStorage.setItem(STORAGE_KEY, previous)
+    localStorage.removeItem(PREVIOUS_STORAGE_KEY)
+  } catch {
+    // Reading the old value once is enough if storage is blocked.
+  }
+  return previous
+}
 
 export const settings = {
   bindings: structuredClone(DEFAULT_BINDINGS),
@@ -122,7 +137,7 @@ export function loadSettings() {
     return
   }
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = readPlaySettings()
     if (!raw) {
       applyDom()
       return
