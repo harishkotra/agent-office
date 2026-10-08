@@ -179,7 +179,7 @@ export function smoothYaw(current: number, target: number, dt: number): number {
   let delta = target - current
   while (delta > Math.PI) delta -= Math.PI * 2
   while (delta < -Math.PI) delta += Math.PI * 2
-  const blend = 1 - Math.exp(-10 * Math.max(dt, 0))
+  const blend = 1 - Math.exp(-TUNING.facingEase * Math.max(dt, 0))
   return current + delta * blend
 }
 

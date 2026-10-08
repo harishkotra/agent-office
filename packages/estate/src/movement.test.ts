@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AIR_BRAKE,
   CHAIN_WINDOW,
+  COYOTE,
   DIVE_SPEED,
   JUMP_V,
   PHYSICS_DT,
@@ -9,6 +10,7 @@ import {
   STOP_ACCEL,
   initialMove,
   pressesConsumed,
+  smoothYaw,
   stepMove,
   travelDistance,
   wishFromKeys,
@@ -155,6 +157,44 @@ describe('stepMove', () => {
     s.vz = 0
     s = frame(s, { wishX: 0, wishZ: 0 }, false)
     expect(s.vx).toBeCloseTo(10 - AIR_BRAKE * PHYSICS_DT, 5)
+    for (let i = 0; i < 59; i++) s = frame(s, { wishX: 0, wishZ: 0 }, false)
+    expect(10 - s.vx).toBeGreaterThanOrEqual(7)
+  })
+
+  it('allows a coyote jump at 0.11 s and refuses one at 0.13 s', () => {
+    const leave = (delay: number) => {
+      let s = frame(initialMove(), {}, true)
+      let t = 0
+      while (t + 1e-9 < delay) {
+        const dt = Math.min(PHYSICS_DT, delay - t)
+        const last = t + dt >= delay - 1e-9
+        s = frame(s, { wishX: 0, wishZ: 0, jumpPressed: last, jumpHeld: last }, false, dt)
+        t += dt
+      }
+      return s
+    }
+    expect(leave(0.11).vy).toBeGreaterThan(1)
+    expect(leave(0.13).vy).toBeLessThan(1)
+    expect(COYOTE).toBe(0.12)
+  })
+
+  it('slides no more than 0.45 m after releasing a run', () => {
+    let s = initialMove()
+    for (let i = 0; i < 80; i++) s = frame(s, { wishZ: -1 }, true)
+    let slid = 0
+    for (let i = 0; i < 60 && Math.hypot(s.vx, s.vz) > 0.01; i++) {
+      s = frame(s, { wishX: 0, wishZ: 0 }, true)
+      slid += Math.hypot(s.vx, s.vz) * PHYSICS_DT
+    }
+    expect(slid).toBeLessThanOrEqual(0.45)
+  })
+
+  it('faces a half turn within 0.30 s', () => {
+    let yaw = 0
+    const frames = Math.round(0.3 / PHYSICS_DT)
+    for (let i = 0; i < frames; i++) yaw = smoothYaw(yaw, Math.PI, PHYSICS_DT)
+    const gap = Math.abs(Math.PI - yaw)
+    expect(gap).toBeLessThan((10 * Math.PI) / 180)
   })
 
   it('allows one dive until the next jump', () => {

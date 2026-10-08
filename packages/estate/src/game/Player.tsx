@@ -8,10 +8,20 @@ import { CAPSULE_CENTER, CAPSULE_HALF, CAPSULE_R, look, sim, type Pose } from '.
 import { MARK, zoneAt } from '../zones'
 import { bindingLabel, gamepadPressed, held, jumpHeldNow, settings } from '../settings'
 import { TUNING } from '../tuning'
+import { clampPitch, recenterYaw } from '../camera'
 import { play, publishPlay, transit } from '../play'
 import { BUILDINGS, advanceDoor, doorMotion, insideBuilding, nearbyTarget, promptFor, stepThrough, syncInteriors, type DoorMotion } from '../buildings'
 import { announce, blip, directionWord, placeCue, stereoPan, walkerCue } from '../cues'
 import { touch } from '../touch'
+
+function stickLooking(): boolean {
+  if (typeof navigator === 'undefined' || !navigator.getGamepads) return false
+  for (const pad of navigator.getGamepads()) {
+    if (!pad) continue
+    if (Math.hypot(pad.axes[2] || 0, pad.axes[3] || 0) > 0.2) return true
+  }
+  return false
+}
 
 export function LocalPlayer({ name }: { name: string }) {
   const body = useRef<RapierRigidBody>(null)
@@ -21,6 +31,9 @@ export function LocalPlayer({ name }: { name: string }) {
   const prev = useRef<EdgeLatch>({ jump: false, dive: false })
   const latch = useRef<EdgeLatch>({ jump: false, dive: false })
   const resetHeld = useRef(0)
+  const lookIdle = useRef(0)
+  const lookDevice = useRef<'mouse' | 'pad'>('mouse')
+  const speedRef = useRef(0)
   const interactPrev = useRef(false)
   const interactLatch = useRef(false)
   const zoneSeen = useRef(sim.zone)
@@ -49,10 +62,30 @@ export function LocalPlayer({ name }: { name: string }) {
     let lookY = look.dy
     look.dx = 0
     look.dy = 0
-    sim.camYaw -= lookX * 0.0022
-    if (held(look.keys, 'lookLeft') || touch.lookLeft) sim.camYaw += 1.8 * frame
-    if (held(look.keys, 'lookRight') || touch.lookRight) sim.camYaw -= 1.8 * frame
-    sim.camPitch = Math.min(1.15, Math.max(0.18, sim.camPitch + lookY * 0.0022))
+    const indoorsNow = BUILDINGS.some((building) => insideBuilding(sim.x, sim.z, building))
+    sim.camYaw -= lookX * TUNING.lookPerPixel
+    if (held(look.keys, 'lookLeft') || touch.lookLeft) sim.camYaw += TUNING.lookYawRate * frame
+    if (held(look.keys, 'lookRight') || touch.lookRight) sim.camYaw -= TUNING.lookYawRate * frame
+    sim.camPitch = clampPitch(sim.camPitch + lookY * TUNING.lookPerPixel, indoorsNow)
+    const looking =
+      Math.abs(lookX) + Math.abs(lookY) > 0 ||
+      held(look.keys, 'lookLeft') ||
+      held(look.keys, 'lookRight') ||
+      touch.lookLeft ||
+      touch.lookRight ||
+      stickLooking()
+    if (looking) lookIdle.current = 0
+    else lookIdle.current += frame
+    if (Math.abs(lookX) + Math.abs(lookY) > 0) lookDevice.current = 'mouse'
+    if (Math.hypot(touch.x, touch.y) > 0.2 || stickLooking()) lookDevice.current = 'pad'
+    if (
+      lookDevice.current === 'pad' &&
+      !settings.reducedMotion &&
+      lookIdle.current >= TUNING.recenterDelay &&
+      speedRef.current > TUNING.recenterMove
+    ) {
+      sim.camYaw = recenterYaw(sim.camYaw, sim.facing, frame)
+    }
 
     const blocked = settings.paused || play.directory || play.travel
     const jump = !blocked && (held(look.keys, 'jump') || touch.jump)
@@ -173,6 +206,7 @@ export function LocalPlayer({ name }: { name: string }) {
     sim.indoors = indoors
     if (nextMove.anim === 'idle' || nextMove.anim === 'walk' || nextMove.anim === 'run') sim.camHoldY = target.y
     const speed = Math.hypot(nextMove.vx, nextMove.vz)
+    speedRef.current = speed
     const face = speed > 0.35 ? Math.atan2(nextMove.vx, nextMove.vz) : forward !== 0 || strafe !== 0 ? Math.atan2(wish.x, wish.z) : sim.facing
     sim.facing = settings.reducedMotion ? face : smoothYaw(sim.facing, face, world.timestep || TUNING.timestep)
     sim.anim = nextMove.anim
