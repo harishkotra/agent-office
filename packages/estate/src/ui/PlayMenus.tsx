@@ -109,7 +109,25 @@ function PauseMenu() {
         <label>
           <input type="checkbox" checked={settings.spoken} onChange={(event) => patchOptions({ spoken: event.target.checked })} /> Spoken cues
         </label>
-        <p className="fine">Dive is C or V. Ctrl is left free so it does not close the tab.</p>
+        <p className="fine">Dive is {bindingLabel('dive')}. Ctrl is left free so it does not close the tab.</p>
+        {settings.bindingWarning ? <p className="error">{settings.bindingWarning}</p> : null}
+        <label>
+          <input type="checkbox" checked={settings.sound} onChange={(event) => patchOptions({ sound: event.target.checked })} /> Sound
+        </label>
+        <label>
+          Volume
+          <input type="range" min={0} max={1} step={0.05} value={settings.volume} onChange={(event) => patchOptions({ volume: Number(event.target.value) })} />
+        </label>
+        <label>
+          Look sensitivity
+          <input type="range" min={0.2} max={3} step={0.1} value={settings.sensitivity} onChange={(event) => patchOptions({ sensitivity: Number(event.target.value) })} />
+        </label>
+        <label>
+          <input type="checkbox" checked={settings.invertY} onChange={(event) => patchOptions({ invertY: event.target.checked })} /> Invert Y
+        </label>
+        <label>
+          <input type="checkbox" checked={settings.runToggle} onChange={(event) => patchOptions({ runToggle: event.target.checked })} /> Run toggle
+        </label>
         <button type="button" className="btn" onClick={() => resetSettings()}>
           Reset
         </button>
@@ -172,6 +190,11 @@ function DirectoryPanel() {
   )
 }
 
+function releaseStick() {
+  touch.x = 0
+  touch.y = 0
+}
+
 function TouchControls() {
   return (
     <div className="touch">
@@ -184,19 +207,18 @@ function TouchControls() {
           touch.x = Math.max(-1, Math.min(1, ((event.clientX - rect.left) / rect.width) * 2 - 1))
           touch.y = Math.max(-1, Math.min(1, 1 - ((event.clientY - rect.top) / rect.height) * 2))
         }}
-        onPointerUp={() => {
-          touch.x = 0
-          touch.y = 0
-        }}
+        onPointerUp={releaseStick}
+        onPointerCancel={releaseStick}
+        onLostPointerCapture={releaseStick}
         aria-label="Move"
       />
-      <button type="button" onPointerDown={() => (touch.jump = true)} onPointerUp={() => (touch.jump = false)}>
+      <button type="button" onPointerDown={() => (touch.jump = true)} onPointerUp={() => (touch.jump = false)} onPointerCancel={() => (touch.jump = false)} onLostPointerCapture={() => (touch.jump = false)}>
         Jump
       </button>
-      <button type="button" onPointerDown={() => (touch.dive = true)} onPointerUp={() => (touch.dive = false)}>
+      <button type="button" onPointerDown={() => (touch.dive = true)} onPointerUp={() => (touch.dive = false)} onPointerCancel={() => (touch.dive = false)} onLostPointerCapture={() => (touch.dive = false)}>
         Dive
       </button>
-      <button type="button" onPointerDown={() => (touch.interact = true)} onPointerUp={() => (touch.interact = false)}>
+      <button type="button" onPointerDown={() => (touch.interact = true)} onPointerUp={() => (touch.interact = false)} onPointerCancel={() => (touch.interact = false)} onLostPointerCapture={() => (touch.interact = false)}>
         Use
       </button>
     </div>

@@ -115,8 +115,9 @@ export function EstateScene({
     sim.guest = false
     sim.color = member.color || colorFor(member.id || member.name)
     sim.id = member.id
+    let leavingLock = false
     const down = (event: KeyboardEvent) => {
-      if (event.code === 'Escape') {
+      if (event.code === 'Escape' || event.code === 'KeyP') {
         if (play.directory) {
           publishPlay({ directory: false })
           return
@@ -127,8 +128,14 @@ export function EstateScene({
         }
         const next = !settings.paused
         setPaused(next)
-        if (next) document.exitPointerLock()
+        if (next) {
+          leavingLock = true
+          document.exitPointerLock()
+        }
         return
+      }
+      if (settings.runToggle && settings.bindings.run.includes(event.code) && !event.repeat) {
+        settings.running = !settings.running
       }
       const typing = event.target instanceof HTMLElement && (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA')
       if (typing || settings.paused || settings.listening || play.directory || play.travel) return
@@ -139,10 +146,22 @@ export function EstateScene({
       look.keys[event.code] = false
     }
     const move = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.touch')) return
       if (document.pointerLockElement || (event.buttons & 1) === 1) {
-        look.dx += event.movementX
-        look.dy += event.movementY
+        const sens = settings.sensitivity
+        const invert = settings.invertY ? -1 : 1
+        look.dx += event.movementX * sens
+        look.dy += event.movementY * sens * invert
       }
+    }
+    const onLock = () => {
+      if (document.pointerLockElement) return
+      if (leavingLock) {
+        leavingLock = false
+        return
+      }
+      setPaused(true)
     }
     const clear = () => {
       for (const key of Object.keys(look.keys)) look.keys[key] = false
@@ -151,11 +170,13 @@ export function EstateScene({
     window.addEventListener('keyup', up)
     window.addEventListener('pointermove', move)
     window.addEventListener('blur', clear)
+    document.addEventListener('pointerlockchange', onLock)
     return () => {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
       window.removeEventListener('pointermove', move)
       window.removeEventListener('blur', clear)
+      document.removeEventListener('pointerlockchange', onLock)
       clear()
     }
   }, [member.color, member.id, member.name])

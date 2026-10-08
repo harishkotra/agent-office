@@ -32,7 +32,7 @@ export function walkerCue(name: string, dir: string): string {
 let audio: AudioContext | null = null
 
 export function blip(pan: number) {
-  if (settings.reducedMotion || typeof window === 'undefined') return
+  if (!settings.sound || settings.volume <= 0 || typeof window === 'undefined') return
   const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
   if (!Ctx) return
   try {
@@ -42,7 +42,7 @@ export function blip(pan: number) {
     const gain = audio.createGain()
     const panner = audio.createStereoPanner()
     osc.frequency.value = 660
-    gain.gain.value = 0.04
+    gain.gain.value = 0.04 * settings.volume
     panner.pan.value = pan
     osc.connect(gain)
     gain.connect(panner)

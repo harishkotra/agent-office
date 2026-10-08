@@ -101,7 +101,7 @@ a.btn { display: inline-block; text-align: center; text-decoration: none; }
   font-size: 22px;
 }
 
-.game > canvas { display: block; width: 100%; height: 100%; }
+.game > canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
 .hud { position: absolute; inset: 0; pointer-events: none; }
 

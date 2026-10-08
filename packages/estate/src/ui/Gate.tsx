@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { signIn, FAMILY_ACCOUNT_URL, type Member } from '../auth'
+import { controlLines } from '../settings'
 
 export function Gate({ onEnter, notice }: { onEnter: (member: Member) => void; notice?: string }) {
   const [email, setEmail] = useState('')
@@ -62,12 +63,9 @@ export function Gate({ onEnter, notice }: { onEnter: (member: Member) => void; n
           Same account as <a href={FAMILY_ACCOUNT_URL}>mccowanestate.com</a>. You need a site profile to walk in.
         </p>
         <ul className="controls">
-          <li>WASD or arrows to walk</li>
-          <li>Shift to run</li>
-          <li>Space to jump, again as you land for a higher leap</li>
-          <li>Ctrl or C to dive</li>
-          <li>Drag the mouse, or Q and E, to look</li>
-          <li>R to return to the gate</li>
+          {controlLines().map((line) => (
+            <li key={line}>{line}</li>
+          ))}
         </ul>
       </section>
     </main>

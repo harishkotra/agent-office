@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { PlayMenus } from './PlayMenus'
 import { markerColor, initials } from '../markers'
-import { settings } from '../settings'
+import { controlLines, settings } from '../settings'
 import { sim } from '../sim'
 
 function cssColor(value: string) {
@@ -93,7 +93,7 @@ export function Hud() {
         {sim.zone}
       </div>
       <canvas ref={map} className="minimap" width={180} height={180} aria-label="Map of the estate" />
-      <p className="hint">WASD move · Shift run · Space jump · C or V dive · F interact · Q/E or drag look · R gate · Esc settings</p>
+      <p className="hint">{controlLines().join(' · ')} · P settings</p>
       <PlayMenus />
     </div>
   )

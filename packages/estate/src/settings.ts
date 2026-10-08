@@ -48,7 +48,14 @@ export const settings = {
   font: 'medium' as FontSize,
   reducedMotion: false,
   colorblind: false,
-  spoken: true,
+  spoken: false,
+  sound: true,
+  sensitivity: 1,
+  invertY: false,
+  volume: 0.7,
+  runToggle: false,
+  running: false,
+  bindingWarning: '',
   paused: false,
   listening: null as Action | null,
   revision: 0,
@@ -125,6 +132,11 @@ export function loadSettings() {
     if (typeof data.reducedMotion === 'boolean') settings.reducedMotion = data.reducedMotion
     if (typeof data.colorblind === 'boolean') settings.colorblind = data.colorblind
     if (typeof data.spoken === 'boolean') settings.spoken = data.spoken
+    if (typeof data.sound === 'boolean') settings.sound = data.sound
+    if (typeof data.invertY === 'boolean') settings.invertY = data.invertY
+    if (typeof data.runToggle === 'boolean') settings.runToggle = data.runToggle
+    if (typeof data.sensitivity === 'number' && data.sensitivity >= 0.2 && data.sensitivity <= 3) settings.sensitivity = data.sensitivity
+    if (typeof data.volume === 'number' && data.volume >= 0 && data.volume <= 1) settings.volume = data.volume
     if (data.bindings && typeof data.bindings === 'object') {
       for (const action of ACTION_LABELS) {
         const next = data.bindings[action.id]
@@ -141,16 +153,37 @@ export function loadSettings() {
 
 function persist() {
   if (typeof localStorage === 'undefined') return
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      bindings: settings.bindings,
-      font: settings.font,
-      reducedMotion: settings.reducedMotion,
-      colorblind: settings.colorblind,
-      spoken: settings.spoken,
-    }),
-  )
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        bindings: settings.bindings,
+        font: settings.font,
+        reducedMotion: settings.reducedMotion,
+        colorblind: settings.colorblind,
+        spoken: settings.spoken,
+        sound: settings.sound,
+        sensitivity: settings.sensitivity,
+        invertY: settings.invertY,
+        volume: settings.volume,
+        runToggle: settings.runToggle,
+      }),
+    )
+  } catch {
+    // Private browsing can refuse storage.
+  }
+}
+
+export function controlLines(): string[] {
+  return [
+    `${bindingLabel('forward')} to walk`,
+    `${bindingLabel('run')} to run`,
+    `${bindingLabel('jump')} to jump`,
+    `${bindingLabel('dive')} to dive`,
+    `${bindingLabel('lookLeft')} and ${bindingLabel('lookRight')} to look`,
+    `${bindingLabel('interact')} to use a door`,
+    `${bindingLabel('reset')} to return to the gate`,
+  ]
 }
 
 export function setPaused(paused: boolean) {
@@ -159,7 +192,9 @@ export function setPaused(paused: boolean) {
   emit()
 }
 
-export function patchOptions(patch: Partial<Pick<typeof settings, 'font' | 'reducedMotion' | 'colorblind' | 'spoken'>>) {
+export function patchOptions(
+  patch: Partial<Pick<typeof settings, 'font' | 'reducedMotion' | 'colorblind' | 'spoken' | 'sound' | 'sensitivity' | 'invertY' | 'volume' | 'runToggle'>>,
+) {
   Object.assign(settings, patch)
   persist()
   emit()
@@ -176,10 +211,15 @@ export function assignBinding(action: Action, code: string) {
     emit()
     return
   }
+  let warning = ''
   for (const item of ACTION_LABELS) {
+    if (item.id === action || !settings.bindings[item.id].includes(code)) continue
+    warning = `${codeLabel(code)} is already ${item.label}. It moved.`
     settings.bindings[item.id] = settings.bindings[item.id].filter((bound) => bound !== code)
   }
-  settings.bindings[action] = [code]
+  const kept = settings.bindings[action].filter((bound) => bound !== code)
+  settings.bindings[action] = [...kept, code].slice(-2)
+  settings.bindingWarning = warning
   settings.listening = null
   persist()
   emit()
@@ -191,7 +231,14 @@ export function resetSettings() {
   settings.font = 'medium'
   settings.reducedMotion = prefersReduced()
   settings.colorblind = false
-  settings.spoken = true
+  settings.spoken = false
+  settings.sound = true
+  settings.sensitivity = 1
+  settings.invertY = false
+  settings.volume = 0.7
+  settings.runToggle = false
+  settings.running = false
+  settings.bindingWarning = ''
   settings.paused = paused
   settings.listening = null
   persist()

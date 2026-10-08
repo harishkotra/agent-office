@@ -130,7 +130,7 @@ export function LocalPlayer({ name }: { name: string }) {
       {
         wishX: wish.x,
         wishZ: wish.z,
-        run: !blocked && held(look.keys, 'run'),
+        run: !blocked && (settings.runToggle ? settings.running : held(look.keys, 'run') || Math.hypot(touch.x, touch.y) >= 0.85),
         jumpPressed: presses.jumpPressed,
         jumpHeld: jumpHeldNow(look.keys, touch.jump, gamepadPressed(0)),
         divePressed: presses.divePressed,
