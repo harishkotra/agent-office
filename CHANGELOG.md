@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Removed
+- The original pixel-office packages, examples, Docker compose file, and vendored pixel-agents snapshot. The estate client did not use them. The Pixel Agents MIT license file remains.
+
 ## [0.1.3] - 2026-10-07
 
 ### Changed
@@ -13,7 +18,6 @@ All notable changes to this project are documented in this file.
 ### Security
 - The estate page no longer honors a `?ws=` override. The presence socket stays on the page's own host.
 - A walker is admitted only when the account email matches one living `tree_people` row. Name matching is not used.
-- Evelyn Rosborough, Lee Rosborough, Vivian McCowan, Sammy McCowan III, and Jeremiah Devon McCowan cannot walk the grounds, along with any roster role that says passed.
 
 ## [0.1.1] - 2026-10-07
 

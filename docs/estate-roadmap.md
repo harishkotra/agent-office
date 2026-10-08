@@ -4,6 +4,8 @@ This is the work plan for the Virtual Estate (`packages/estate`, the three.js / 
 
 This repo is public. Nothing in this file, in PRs, in commits or in Slack may name a family member or household, give contact details, describe a security problem, or contain a key or token.
 
+The original agent-office packages (`packages/core`, `packages/adapters`, `packages/server`, `packages/ui`, `packages/cli`), `examples/`, and the vendored `pixel-agents-repo/` snapshot have been removed. The estate client, the presence server, and CI did not use them. No assets or code from them were reused. `packages/ui/walk` was not in the tree. The Pixel Agents MIT license file remains.
+
 ---
 
 ## A. How each run works

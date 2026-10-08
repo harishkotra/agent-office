@@ -3,6 +3,8 @@
 **Owner:** Game Designer Bot (design lead). **Builder:** Cursor. **Status:** Draft v1, 2026-10-07. Public copy for this repo.
 
 > This is the public copy of the gameplay spec. Owner questions and database requests are tracked privately and are not part of this file, so there is no section 8 or 9. Where this copy and the roadmap (`docs/estate-roadmap.md`) disagree on process, the roadmap wins.
+>
+> Legacy cleanup: `packages/core`, `packages/adapters`, `packages/server`, `packages/ui`, `packages/cli`, `examples/`, and `pixel-agents-repo/` (except its MIT license) are not in this repo. `packages/ui/walk` was not in the tree. Mentions of those paths below are historical.
 
 **Baseline read:** `JerichoTheWall/agent-office-walkaround` `main` at `09ca8a5` (merge of PR #4, "Play-feel pass", merged 2026-10-07 1:16 PM PT), package `packages/estate`. Open PRs #2 and #3 were also read.
 **Companion docs (these win where they overlap):**
