@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextRetry, presenceRejection, PROFILE_MISMATCH_TEXT, SIGN_IN_TEXT } from './wait'
+import { ACCOUNT_NOT_READY_TEXT, nextRetry, presenceRejection, PROFILE_MISMATCH_TEXT, retryButtonDisabled, SIGN_IN_TEXT } from './wait'
 import { accountMessage } from './profileName'
 
 describe('presence waiting copy', () => {
@@ -9,6 +9,10 @@ describe('presence waiting copy', () => {
     expect(presenceRejection('Sign in on the family site to walk the grounds.')).toBe('signin')
     expect(presenceRejection('Family sign-in could not be checked. Sign in again on the family site.')).toBe('signin')
     expect(presenceRejection('Confirm your phone on the family site before walking the grounds.')).toBe('phone')
+    expect(ACCOUNT_NOT_READY_TEXT).toBe("Your account isn't ready for the estate yet. Check the family site.")
+    expect(ACCOUNT_NOT_READY_TEXT).not.toMatch(/teen|minor|phone/i)
+    expect(retryButtonDisabled(true)).toBe(true)
+    expect(retryButtonDisabled(false)).toBe(false)
     expect(accountMessage('signin').endsWith('to visit the estate.')).toBe(true)
     expect(nextRetry(8)).toBe(7)
     expect(nextRetry(0)).toBe(0)

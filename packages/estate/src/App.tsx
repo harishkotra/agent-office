@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { restoreSession, type Member } from './auth'
 import { accountMessage } from './profileName'
 import { EstateScene } from './game/EstateScene'
@@ -6,23 +6,25 @@ import { Gate } from './ui/Gate'
 import { Hud } from './ui/Hud'
 import { colorFor } from './family'
 import { sim } from './sim'
-import { PHONE_TEXT, PRESENCE_OFFLINE_TEXT, nextRetry, presenceRejection, PROFILE_MISMATCH_TEXT } from './wait'
+import { ACCOUNT_NOT_READY_TEXT, PRESENCE_OFFLINE_TEXT, nextRetry, presenceRejection, PROFILE_MISMATCH_TEXT, retryButtonDisabled } from './wait'
 
-function Waiting({ mode, onRetry }: { mode: 'connecting' | 'offline' | 'profile' | 'phone'; onRetry: () => void }) {
+function Waiting({ mode, busy, onRetry }: { mode: 'connecting' | 'offline' | 'profile' | 'phone'; busy: boolean; onRetry: () => void }) {
   const [left, setLeft] = useState(8)
+  const busyRef = useRef(busy)
+  busyRef.current = busy
   useEffect(() => {
     if (mode !== 'offline') return
     setLeft(8)
     const timer = window.setInterval(() => {
       setLeft((current) => {
         const next = nextRetry(current)
-        if (next === 0) onRetry()
+        if (next === 0 && !busyRef.current) onRetry()
         return next === 0 ? 8 : next
       })
     }, 1000)
     return () => window.clearInterval(timer)
   }, [mode, onRetry])
-  const title = mode === 'offline' ? PRESENCE_OFFLINE_TEXT : mode === 'profile' ? PROFILE_MISMATCH_TEXT : mode === 'phone' ? PHONE_TEXT : 'Checking your account…'
+  const title = mode === 'offline' ? PRESENCE_OFFLINE_TEXT : mode === 'profile' ? PROFILE_MISMATCH_TEXT : mode === 'phone' ? ACCOUNT_NOT_READY_TEXT : 'Checking your account…'
   return (
     <main className="gate">
       <section className="gate-card">
@@ -31,7 +33,7 @@ function Waiting({ mode, onRetry }: { mode: 'connecting' | 'offline' | 'profile'
         {mode === 'offline' ? (
           <>
             <p className="lede" role="status">Trying again in {left}s. The grounds stay closed until family presence is back.</p>
-            <button type="button" className="btn btn-solid" onClick={onRetry}>
+            <button type="button" className="btn btn-solid" onClick={onRetry} disabled={retryButtonDisabled(busy)} aria-busy={busy}>
               Try now
             </button>
           </>
@@ -48,6 +50,11 @@ export function App() {
   const [booting, setBooting] = useState(true)
   const [wait, setWait] = useState<'connecting' | 'offline' | 'profile' | 'phone'>('connecting')
   const [retry, setRetry] = useState(0)
+  const [trying, setTrying] = useState(false)
+  const retryNow = useCallback(() => {
+    setTrying(true)
+    setRetry((current) => current + 1)
+  }, [])
 
   useEffect(() => {
     restoreSession()
@@ -80,6 +87,7 @@ export function App() {
     sim.id = next.id
     setMember((prev) => (prev ? { ...prev, ...next, token: prev.token } : next))
     setAdmitted(true)
+    setTrying(false)
     setWait('connecting')
   }, [])
 
@@ -87,6 +95,7 @@ export function App() {
     sim.id = ''
     sim.roster = []
     setAdmitted(false)
+    setTrying(false)
     const reason = presenceRejection(message)
     if (reason === 'profile' || reason === 'phone') {
       setWait(reason)
@@ -98,7 +107,13 @@ export function App() {
   }, [])
 
   const onStatus = useCallback((status: 'connecting' | 'offline') => {
-    setWait((current) => (current === 'profile' ? current : status))
+    if (status === 'connecting') setTrying(true)
+    if (status === 'offline') setTrying(false)
+    setWait((current) => {
+      if (current === 'profile' || current === 'phone') return current
+      if (current === 'offline' && status === 'connecting') return 'offline'
+      return status
+    })
   }, [])
 
   if (booting && !member) {
@@ -133,7 +148,7 @@ export function App() {
   return (
     <div className={admitted ? 'game' : undefined}>
       <EstateScene member={member} admitted={admitted} onWelcome={onWelcome} onReject={onReject} onStatus={onStatus} retry={retry} />
-      {admitted ? <Hud /> : <Waiting mode={wait} onRetry={() => setRetry((current) => current + 1)} />}
+      {admitted ? <Hud /> : <Waiting mode={wait} busy={trying} onRetry={retryNow} />}
     </div>
   )
 }
