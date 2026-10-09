@@ -1,0 +1,8 @@
+{
+  "baseBranch": "main",
+  "ciWorkflowPath": ".github/workflows/ci.yml",
+  "allowedAuthors": ["JerichoTheWall"],
+  "allowedBranchPrefixes": ["cursor/"],
+  "holdLabel": "hold",
+  "roadmapPath": "docs/estate-roadmap.md"
+}

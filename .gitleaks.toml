@@ -1,0 +1,16 @@
+title = "estate gitleaks allowlist"
+
+# Each entry is file plus pattern. condition AND means both must match.
+# This is not a global ignore.
+
+[[allowlists]]
+description = "public publishable key in the estate client"
+condition = "AND"
+paths = ['''(^|/)packages/estate/src/family\.ts$''']
+regexes = ['''sb_publishable_DUv_YgvphJ8_D_L02nKTYQ_uCJZaJxD''']
+
+[[allowlists]]
+description = "Phaser animation names in the office game"
+condition = "AND"
+paths = ['''(^|/)packages/ui/src/game/Game\.ts$''']
+regexes = ['''char_[01]-walk-(down|up)''']

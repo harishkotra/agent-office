@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Removed
+- The original pixel-office packages, examples, Docker compose file, and vendored pixel-agents snapshot. The estate client did not use them. The Pixel Agents MIT license file remains.
+
+## [0.1.3] - 2026-10-07
+
+### Changed
+- A walker is the signed-in site account. Admission requires a live Supabase session and that user's existing `profiles` row. The grounds name comes from the profile.
+- The family tree is not used to admit walkers or to choose their name.
+
+## [0.1.2] - 2026-10-07
+
+### Security
+- The estate page no longer honors a `?ws=` override. The presence socket stays on the page's own host.
+- A walker is admitted only when the account email matches one living `tree_people` row. Name matching is not used.
+
+## [0.1.1] - 2026-10-07
+
+### Changed
+- The 3D estate admits only a live family-site session that matches one living `tree_people` row. Guests and anonymous sockets are refused.
+- Hop-in is a same-origin page (`/estate/` on mccowanestate.com). The grounds read the existing Supabase session and do not take a token from another origin.
+
+## [0.1.0] - 2026-10-07
+
+### Added
+- Walkable 3D McCowan Family Estate (`packages/estate`) with keyboard controls in the style of Super Mario 64, Fall Guys, and Gang Beasts: camera-relative walk and run, jump chains, dive, and a wobbly bean character.
+- Live presence server (`packages/estate-server`) so family members on the grounds can see each other and which part of the estate they are in.
+- Family-site sign-in bridge using the same accounts as mccowanestate.com, plus a `postMessage` session the website can pass into an embedded frame.
+
 ## [0.0.2] - 2026-04-13
 
 ### Added
