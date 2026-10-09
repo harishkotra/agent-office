@@ -1,16 +1,23 @@
+import { useEffect, useRef } from 'react'
 import { FAMILY_ACCOUNT_URL, FAMILY_ESTATE_PATH } from '../auth'
 import { FAMILY_SITE } from '../family'
 import { controlLines } from '../settings'
+import { SIGN_IN_BUTTON, SIGN_IN_TEXT } from '../wait'
 
 const RETURN_KEY = 'estate-return'
 
 export function Gate({ notice }: { notice?: string }) {
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    heading.current?.focus()
+  }, [])
   return (
     <main className="gate">
       <section className="gate-card">
         <p className="eyebrow">The McCowan Family Estate</p>
-        <h1>Walk the grounds together</h1>
-        <p className="lede">Sign in on the family site to visit the estate.</p>
+        <h1 ref={heading} tabIndex={-1}>
+          {SIGN_IN_TEXT}
+        </h1>
         {notice ? <p className="error">{notice}</p> : null}
         <p>
           <a
@@ -24,7 +31,7 @@ export function Gate({ notice }: { notice?: string }) {
               }
             }}
           >
-            Sign in on the family site
+            {SIGN_IN_BUTTON}
           </a>
         </p>
         <p className="fine">

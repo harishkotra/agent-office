@@ -160,7 +160,7 @@ Take the first unchecked task that is not blocked (section A, step 3). "Draft" m
 - [x] **B2. Movement and camera** (spec 3.1–3.3; 7A items 1–12).
 - [x] **B3. Input, touch and settings** (spec 2.1–2.5, 6.2; 7A items 13–19, 27–29).
 - [x] **B4. Doors, Travel and menus** (spec 4.1, 4.2, 4.4, 5.4, 6.1; 7A items 20–26).
-- [ ] **B5. Waiting screens** (spec 6A; 7A items 30–33; 7.2). Parts that touch `auth.ts` are protected and go in a draft PR.
+- [x] **B5. Waiting screens** (spec 6A; 7A items 30–33; 7.2). Parts that touch `auth.ts` are protected and go in a draft PR.
 - [ ] **B6. Visuals and performance** (spec 6.3; 7A items 34–36).
 
 ### Engine
