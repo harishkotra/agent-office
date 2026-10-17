@@ -1,4 +1,6 @@
 import { exec } from 'child_process';
+import { randomUUID } from 'crypto';
+import { searchParallel } from './ParallelSearch';
 import { tavily, type TavilyClient, type TavilySearchResponse } from '@tavily/core';
 
 export interface ToolResult {
@@ -20,12 +22,12 @@ export class ToolExecutor {
         return null;
     }
 
-    async execute(toolName: string, params: any): Promise<ToolResult> {
+    async execute(toolName: string, params: any, options: { signal?: AbortSignal; taskId?: string } = {}): Promise<ToolResult> {
         switch (toolName) {
             case 'code_execute':
                 return this.executeCode(params.code, params.language || 'javascript');
             case 'web_search':
-                return this.webSearch(params.query);
+                return this.webSearch(params?.query, options.signal, options.taskId);
             case 'write_note':
                 return this.writeNote(params.content);
             case 'read_file':
@@ -67,10 +69,32 @@ export class ToolExecutor {
         });
     }
 
-    private async webSearch(query: string): Promise<ToolResult> {
+    private async webSearch(query: string, signal?: AbortSignal, taskId?: string): Promise<ToolResult> {
+        const provider = process.env.WEB_SEARCH_PROVIDER?.trim().toLowerCase();
+        if (provider === 'none') {
+            return { success: false, output: '', error: 'Web search is disabled.' };
+        }
+        if (typeof query !== 'string' || !query.trim()) {
+            return { success: false, output: '', error: 'A non-empty search query is required.' };
+        }
+        if (signal?.aborted) {
+            return { success: false, output: '', error: 'Search cancelled.' };
+        }
+        if (provider === 'parallel') {
+            try {
+                return { success: true, output: await searchParallel(query, taskId ?? randomUUID(), signal) };
+            } catch (error: unknown) {
+                return { success: false, output: '', error: `Parallel search failed: ${error instanceof Error ? error.message : String(error)}` };
+            }
+        }
+        if (provider === 'duckduckgo') return this.webSearchDuckDuckGo(query);
+        if (provider && provider !== 'tavily') {
+            return { success: false, output: '', error: `Unknown WEB_SEARCH_PROVIDER: ${provider}` };
+        }
         const client = this.getTavilyClient();
-        if (client) {
-            return this.webSearchTavily(query, client);
+        if (client) return this.webSearchTavily(query, client);
+        if (provider === 'tavily') {
+            return { success: false, output: '', error: 'Tavily requires TAVILY_API_KEY.' };
         }
         return this.webSearchDuckDuckGo(query);
     }

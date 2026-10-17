@@ -1,4 +1,5 @@
 import { Room, Client } from 'colyseus';
+import { randomUUID } from 'crypto';
 import { OfficeState } from '../schema/OfficeState';
 import { Agent, Office, OfficeConfig, ConversationMessage } from '@agent-office/core';
 import { OllamaAdapter } from '@agent-office/adapters';
@@ -33,6 +34,7 @@ export class OfficeRoom extends Room<OfficeState> {
     private ollamaAdapter = new OllamaAdapter('http://localhost:11434');
     private hireCount = 0; // Counter for generating unique IDs
     private toolExecutor = new ToolExecutor();
+    private taskIds: Map<string, string> = new Map();
     private memoryStore = new MemoryStore();
     private sessionId = `session_${Date.now()}`;
     private currentScenario = 'Free Play';
@@ -163,6 +165,7 @@ export class OfficeRoom extends Room<OfficeState> {
             const agentState = this.state.agents.get(targetId);
 
             if (agent && agentState) {
+                this.taskIds.set(targetId, randomUUID());
                 agent.currentTask = title;
                 agentState.currentTask = title;
                 agentState.action = 'work';
@@ -232,6 +235,9 @@ export class OfficeRoom extends Room<OfficeState> {
                     }
                 });
 
+                // Capture the assignment before inference; a new task may arrive while it runs.
+                // Unassigned research is scoped to this think cycle rather than the room.
+                const taskId = this.taskIds.get(id) ?? randomUUID();
                 coreAgent.think({
                     time: this.state.officeTime,
                     location: `${agentState.x},${agentState.y}`,
@@ -299,6 +305,7 @@ export class OfficeRoom extends Room<OfficeState> {
                             const targetState = this.state.agents.get(targetId);
 
                             if (targetAgent && targetState) {
+                                this.taskIds.set(targetId, randomUUID());
                                 targetAgent.currentTask = title;
                                 targetState.currentTask = title;
                                 await this.memoryStore.createTask(title, targetId);
@@ -393,7 +400,8 @@ export class OfficeRoom extends Room<OfficeState> {
                         } else {
                             const result = await this.toolExecutor.execute(
                                 decision.toolCall.name,
-                                decision.toolCall.params
+                                decision.toolCall.params,
+                                { taskId }
                             );
 
                             this.broadcast('chat', {

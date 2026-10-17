@@ -24,7 +24,22 @@ Runs sandboxed JavaScript code with a 5-second timeout.
 
 ### `web_search`
 
-Searches the web using the DuckDuckGo Instant Answer API (no API key needed).
+Searches the web using Tavily when `TAVILY_API_KEY` is set, or the DuckDuckGo Instant Answer API otherwise.
+
+To use free [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp),
+start the server with `WEB_SEARCH_PROVIDER=parallel`. No Parallel account or API key
+is needed. Search runs in Fast mode and returns source links and excerpts through
+the existing `web_search` tool. This sends the query to `https://search.parallel.ai/mcp`.
+
+Set `WEB_SEARCH_PROVIDER=duckduckgo` or `tavily` to select either existing provider
+explicitly, or `none` to disable web search. An empty or unset value keeps the
+existing automatic selection. Explicit Tavily selection requires `TAVILY_API_KEY`.
+An explicit provider failure is returned as a tool error without switching providers.
+
+Parallel requests have a 15-second deadline, including connection and discovery.
+Callers of `ToolExecutor.execute` can supply `{ signal }` as the third argument to
+cancel a Parallel request. Anonymous access is intended for light use; service
+limits and network failures are returned as tool errors.
 
 ```json
 {
