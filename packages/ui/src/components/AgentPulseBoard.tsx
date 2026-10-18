@@ -42,7 +42,8 @@ export function AgentPulseBoard() {
             subtitle="Mood, risk, momentum"
             width={300}
             defaultDock="left"
-            defaultY={420}
+            defaultY={580}
+            bodyMaxHeight={220}
             zIndex={14}
         >
             {sortedAgents.length === 0 && (

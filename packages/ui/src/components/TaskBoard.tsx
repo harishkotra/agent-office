@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getColyseusRoom } from '../game/Game';
+import { eventBus } from '../events';
+import { FloatingPanel } from './FloatingPanel';
 
 interface TaskItem {
     id: number;
@@ -8,36 +10,46 @@ interface TaskItem {
     status: string;
 }
 
+const AGENT_OPTIONS = [
+    { id: 'supervisor-0', label: 'CEO / Operator' },
+    { id: 'supervisor-1', label: 'General Manager' },
+    { id: 'supervisor-2', label: 'Debug Lane' },
+    { id: 'supervisor-3', label: 'Validator Lane' },
+    { id: 'supervisor-4', label: 'Dynamic Worker' },
+    { id: 'supervisor-5', label: 'TUI Pane' },
+];
+
 export function TaskBoard() {
     const [tasks, setTasks] = useState<TaskItem[]>([]);
     const [newTask, setNewTask] = useState('');
     const [targetAgent, setTargetAgent] = useState('auto');
 
     useEffect(() => {
-        const checkRoom = setInterval(() => {
-            const room = getColyseusRoom();
-            if (room) {
-                room.onMessage('task-update', (data: any) => {
-                    setTasks(prev => {
-                        const existing = prev.find(t => t.title === data.task);
-                        if (existing) {
-                            return prev.map(t => t.title === data.task ? { ...t, status: data.status, assigned_to: data.agentId } : t);
-                        }
-                        return [...prev, { id: Date.now(), title: data.task, assigned_to: data.agentId, status: data.status }];
-                    });
-                });
-                room.onMessage('tasks-sync', (serverTasks: any[]) => {
-                    setTasks(serverTasks.map(t => ({
-                        id: t.id,
-                        title: t.title,
-                        assigned_to: t.assigned_to || '',
-                        status: t.status
-                    })));
-                });
-                clearInterval(checkRoom);
-            }
-        }, 500);
-        return () => clearInterval(checkRoom);
+        const handleTaskUpdate = (event: Event) => {
+            const data = (event as CustomEvent).detail;
+            setTasks(prev => {
+                const existing = prev.find(t => t.title === data.task);
+                if (existing) {
+                    return prev.map(t => t.title === data.task ? { ...t, status: data.status, assigned_to: data.agentId } : t);
+                }
+                return [...prev, { id: Date.now(), title: data.task, assigned_to: data.agentId, status: data.status }];
+            });
+        };
+        const handleTasksSync = (event: Event) => {
+            const serverTasks = (event as CustomEvent).detail as any[];
+            setTasks(serverTasks.map(t => ({
+                id: t.id,
+                title: t.title,
+                assigned_to: t.assigned_to || '',
+                status: t.status
+            })));
+        };
+        eventBus.addEventListener('task-update', handleTaskUpdate);
+        eventBus.addEventListener('tasks-sync', handleTasksSync);
+        return () => {
+            eventBus.removeEventListener('task-update', handleTaskUpdate);
+            eventBus.removeEventListener('tasks-sync', handleTasksSync);
+        };
     }, []);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -63,20 +75,16 @@ export function TaskBoard() {
     };
 
     return (
-        <div style={{
-            position: 'absolute', left: 20, top: 20, width: 280,
-            backgroundColor: 'rgba(10,10,30,0.92)', color: 'white',
-            padding: 16, borderRadius: 12,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(108,92,231,0.3)',
-            maxHeight: '50vh', display: 'flex', flexDirection: 'column'
-        }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                📋 Task Board
-            </h3>
-
-            {/* Task Assignment Form */}
+        <FloatingPanel
+            id="task-board"
+            title="📋 Task Board"
+            subtitle="Assignments and production work"
+            width={300}
+            defaultDock="left"
+            defaultY={430}
+            bodyMaxHeight={220}
+            zIndex={20}
+        >
             <form onSubmit={handleSubmit} style={{ marginBottom: 10 }}>
                 <input
                     type="text"
@@ -101,8 +109,9 @@ export function TaskBoard() {
                         }}
                     >
                         <option value="auto">🤖 Auto-assign</option>
-                        <option value="alice">Alice (Engineer)</option>
-                        <option value="bob">Bob (PM)</option>
+                        {AGENT_OPTIONS.map((agent) => (
+                            <option key={agent.id} value={agent.id}>{agent.label}</option>
+                        ))}
                     </select>
                     <button type="submit" style={{
                         padding: '6px 14px', borderRadius: 6, border: 'none',
@@ -114,10 +123,9 @@ export function TaskBoard() {
                 </div>
             </form>
 
-            {/* Task List */}
-            <div style={{ flex: 1, overflowY: 'auto', fontSize: '12px' }}>
+            <div style={{ maxHeight: '30vh', overflowY: 'auto', fontSize: '12px' }}>
                 {tasks.length === 0 && (
-                    <p style={{ color: '#666', fontStyle: 'italic', margin: 0, fontSize: '11px' }}>
+                    <p style={{ color: '#8f86aa', fontStyle: 'italic', margin: 0, fontSize: '11px' }}>
                         No tasks yet. Type above to assign work to agents!
                     </p>
                 )}
@@ -137,9 +145,9 @@ export function TaskBoard() {
                 ))}
             </div>
 
-            <div style={{ marginTop: 8, fontSize: '10px', color: '#555', borderTop: '1px solid #333', paddingTop: 6 }}>
-                🤖 Engine: Ollama Local • 💾 SQLite Persistence
+            <div style={{ marginTop: 8, fontSize: '10px', color: '#77718c', borderTop: '1px solid #333', paddingTop: 6 }}>
+                🧭 Source: csup state files • 🖥️ tmux TUI panes
             </div>
-        </div>
+        </FloatingPanel>
     );
 }

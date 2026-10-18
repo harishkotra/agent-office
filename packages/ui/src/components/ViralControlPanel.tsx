@@ -76,6 +76,7 @@ export function ViralControlPanel() {
             width={330}
             defaultDock="right"
             defaultY={20}
+            bodyMaxHeight={250}
             zIndex={18}
         >
             <div style={{ fontSize: 11, color: '#babedc', marginTop: 8, marginBottom: 10 }}>

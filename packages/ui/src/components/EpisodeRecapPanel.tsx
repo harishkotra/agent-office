@@ -45,8 +45,9 @@ export function EpisodeRecapPanel() {
             title="Episode Recap"
             subtitle="Export-ready run summary"
             width={340}
-            defaultDock="left"
-            defaultY={220}
+            defaultDock="center"
+            defaultY={350}
+            bodyMaxHeight={170}
             zIndex={15}
         >
             <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
