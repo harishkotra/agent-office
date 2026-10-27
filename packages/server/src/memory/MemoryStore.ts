@@ -14,12 +14,24 @@ function cosineSimilarity(a: number[], b: number[]): number {
 export class MemoryStore {
     private db?: Database;
     private ollamaUrl: string;
+    /**
+     * Embeddings call Ollama (/api/embeddings). They are NOT needed to show
+     * the office, so they are disabled in external mode (no LLM dependency).
+     */
+    private embeddingsEnabled: boolean;
 
-    constructor(ollamaUrl: string = 'http://localhost:11434') {
+    constructor(ollamaUrl: string = 'http://localhost:11434', embeddingsEnabled: boolean = true) {
         this.ollamaUrl = ollamaUrl;
+        this.embeddingsEnabled = embeddingsEnabled;
     }
 
-    async initialize(dbPath: string = './data/office-memory.db') {
+    async initialize(
+        dbPath: string = './data/office-memory.db',
+        opts?: { ollamaUrl?: string; embeddingsEnabled?: boolean }
+    ) {
+        if (opts?.ollamaUrl !== undefined) this.ollamaUrl = opts.ollamaUrl;
+        if (opts?.embeddingsEnabled !== undefined) this.embeddingsEnabled = opts.embeddingsEnabled;
+
         // Ensure data directory exists
         const { mkdir } = await import('fs/promises');
         const path = await import('path');
@@ -69,12 +81,16 @@ export class MemoryStore {
             // Column already exists — ignore
         }
 
-        console.log('[MemoryStore] SQLite initialized at', dbPath);
+        console.log(
+            `[MemoryStore] SQLite initialized at ${dbPath} ` +
+            `(embeddings: ${this.embeddingsEnabled ? 'enabled' : 'DISABLED'})`
+        );
     }
 
     // --- Embedding Generation ---
 
     private async generateEmbedding(text: string): Promise<number[] | null> {
+        if (!this.embeddingsEnabled) return null;
         try {
             const res = await fetch(`${this.ollamaUrl}/api/embeddings`, {
                 method: 'POST',

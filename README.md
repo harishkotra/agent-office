@@ -1,282 +1,104 @@
-# 🏢 AgentOffice
+# 🏢 Ciudadan AgentOffice
 
-**Self-growing AI teams in a pixel-art virtual office — powered by local LLMs.**
+**Interfaz web interactiva para visualizar y controlar hasta siete agentes [Cline](https://github.com/cline/cline) reales**, con tareas, sprints e instrucciones autorizadas — sin simulaciones.
 
-Watch AI agents walk to desks, think, collaborate, hire interns, assign tasks to each other, execute code, search the web, and grow their team — all rendered in real-time pixel art with persistent memory across sessions.
-
-> **Zero lock-in.** Runs 100% locally with Ollama. Swap for any OpenAI-compatible API.
-
-
-
-https://github.com/user-attachments/assets/da76e31d-ff34-4ce1-9092-5bf9e6ee2058
-
-
-
-[https://youtu.be/GgrK8K9RlIA](https://youtu.be/GgrK8K9RlIA)
-
-<img width="1697" height="1272" alt="Screenshot at Feb 25 00-15-59" src="https://github.com/user-attachments/assets/9ed16692-09d9-44e4-a258-f796f9479afb" />
-<img width="1694" height="1272" alt="Screenshot at Feb 25 00-16-31" src="https://github.com/user-attachments/assets/f592359a-ba96-45fc-bb5e-07ec88583a10" />
-<img width="1699" height="1278" alt="screencapture-localhost-5173-2026-02-25-00_05_15" src="https://github.com/user-attachments/assets/4a604b86-1aaf-4b0d-985b-51afe7d71586" />
-<img width="1699" height="1278" alt="screencapture-localhost-5173-2026-02-25-00_04_54" src="https://github.com/user-attachments/assets/4f2811ff-a66e-47e3-9d0f-184123e75e01" />
-<img width="1699" height="1278" alt="screencapture-localhost-5173-2026-02-25-00_04_44" src="https://github.com/user-attachments/assets/8773814e-9414-4c62-a098-8f5a205db187" />
-<img width="1695" height="1270" alt="Screenshot at Feb 25 00-18-57" src="https://github.com/user-attachments/assets/1591cb0e-9aea-4728-8f01-9f7a2c8d5ac2" />
-<img width="2018" height="1268" alt="Screenshot at Feb 25 00-34-36" src="https://github.com/user-attachments/assets/f719ad99-f4ba-4998-8c9b-68818061bc60" />
+> Fork de [harishkotra/agent-office](https://github.com/harishkotra/agent-office) (MIT), reconstruido por Ciudadan sobre Phaser + React + Colyseus. Créditos y licencia originales al final.
 
 ---
 
-## ✨ What Can It Do?
+## ✨ Qué hace (funcionalidades comprobadas)
 
-| Feature | Description |
-|---------|-------------|
-| 🧠 **LLM-Powered Agents** | Each agent has their own Ollama-powered brain with personality traits |
-| 💬 **Agent-to-Agent Conversations** | Agents talk to each other autonomously and respond to messages |
-| 🎯 **Click-to-Follow Focus Mode** | Click any agent sprite to have the camera smoothly track them |
-| 📋 **UI Task Assignment** | Assign tasks from the TaskBoard — or agents create tasks for each other |
-| 🤝 **Dynamic Hiring** | Agents can hire new team members (interns, devs, designers) on their own |
-| 🔧 **Tool Execution** | Sandboxed JS execution, web search, note-taking, file reading |
-| 💾 **Persistent Memory** | SQLite-backed memories survive server restarts with importance-weighted recall |
-| 🔍 **Semantic Memory Search** | Ollama embeddings + cosine similarity for intelligent memory retrieval |
-| 🏗️ **Layout Editor** | Drag-and-drop furniture placement, saved to database |
-| 📊 **System Activity Log** | Real-time feed of all agent events with deduplication |
-| 💡 **Emote Bubbles** | Action-specific emoji (💻💬😌🔧🚶💡) above agent sprites |
-| 🪑 **Furniture Interaction** | Agents walk TO desks to work, approach each other to talk |
+| Funcionalidad | Estado |
+|---|---|
+| Oficina pixel-art con 7 puestos fijos, animaciones según estado real | ✅ |
+| Visualización de sesiones Cline **reales** (identidad, modelo, rama Git, workspace, archivo activo) | ✅ |
+| Estados derivados de evidencia: working / editing / reading / testing / waiting / blocked / idle / completed / offline | ✅ |
+| Movimiento coherente: escritorio, estación de lectura, estación de pruebas, pausas ambientales | ✅ |
+| Política de ocupación: activos primero; finalizadas liberan puesto tras gracia configurable | ✅ |
+| Historial de sesiones (REST) sin ocupar escritorios | ✅ |
+| TaskBoard real: propuestas, sprints, dependencias, tareas observadas de Cline | ✅ |
+| Panel de instrucciones con máquina de estados y aprobación autorizada | ✅ |
+| Lanzamiento de sesiones Cline **gestionadas por hub** desde la oficina (workspace aislado, permisos restrictivos) | ✅ verificado en vivo |
+| Ciclo de instrucciones con evidencia real: enviado → recibido → completado | ✅ verificado E2E (respuestas reales del modelo, misma sesión) |
+| Auditoría completa de acciones de control (JSONL rotativo) | ✅ |
+| Producción en un solo proceso (UI compilada + API + WebSocket) | ✅ |
+| Despliegue reproducible: Docker/compose + script supervisor | ✅ |
+| Adaptador DSH (DeepSeek Harness) preparado como contrato tipado | 🔌 pendiente de instancia real |
 
----
+**Honestidad por diseño**: nada se simula. Si el control real no está disponible, la interfaz lo dice exactamente y por qué.
 
-## 🎬 How It Works
-
-```
-You open the browser → pixel-art office loads → Alice (Engineer) and Bob (PM) spawn
-  → Each agent runs a think loop every ~15s via Ollama
-  → LLM returns: { thought, action, target, toolCall }
-  → Server executes the action (move, talk, use_tool, hire_agent)
-  → Colyseus syncs state to all connected browsers in real-time
-  → Agents remember everything via SQLite + Ollama embeddings
-  → Teams grow as agents decide to hire new members 🚀
-```
-
----
-
-## 🏗️ Architecture
-
-```
-agent-office/
-├── packages/
-│   ├── core/          # Agent state machine, Memory, Tasks, Office grid
-│   ├── adapters/      # OllamaAdapter, OpenAICompatibleAdapter, PromptBuilder
-│   ├── server/        # Colyseus rooms, ToolExecutor, MemoryStore (SQLite)
-│   ├── ui/            # Phaser.js game + React overlay (Chat, TaskBoard, SystemLog)
-│   └── cli/           # Scaffold & management commands
-├── examples/
-│   └── ollama-startup/  # Demo office with 2 agents
-├── docs/              # Documentation (Docusaurus)
-└── docker-compose.yml # One-command deployment
-```
-
-**Data Flow:**
-```
-Ollama ←→ OllamaAdapter ←→ Agent.think() ←→ Colyseus State ←→ Phaser + React UI
-                                  ↕                  ↕
-                           MemoryStore (SQLite)   ToolExecutor
-                           Embeddings (Ollama)    (code, search, tasks)
-```
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-| Tool | Version | Purpose |
-|------|---------|---------|
-| **Node.js** | ≥ 18 | Runtime |
-| **npm** | ≥ 9 | Package manager (workspaces) |
-| **Ollama** | Latest | Local LLM inference |
-
-### Setup
+## 🚀 Instalación rápida (máquina Oracle, una oficina por desarrollador)
 
 ```bash
-# Clone & install
-git clone https://github.com/AjStraworern/agent-office.git
-cd agent-office
+git clone git@github.com:CiudadanMex/gameview.git agent-office
+cd agent-office && git checkout feature/ciudadan-agentoffice-base
 npm install
-
-# Pull the model
-ollama pull llama3.2
-
-# Build all packages
+cp .env.example .env   # ajusta CLINE_DATA_DIR a tus sesiones
 npm run build
-
-# Terminal 1: Start server
-npm run start --workspace=@agent-office/server
-
-# Terminal 2: Start UI
-npm run dev --workspace=@agent-office/ui
+./scripts/office.sh start    # → http://127.0.0.1:3000 (producción, 1 proceso)
 ```
 
-Open **http://localhost:5173** — watch Alice and Bob come alive! 🎉
-
----
-
-## 🐳 Docker Deployment
+Con Docker:
 
 ```bash
-docker compose up --build
+cp .env.example .env && docker compose up -d --build
+docker compose ps   # healthcheck incluido, restart: unless-stopped
 ```
 
-This starts the **server** (port 3000), **UI** (port 80), **Ollama** (with GPU), and **Redis** (for scaling).
+Acceso privado: `ssh -L 3000:127.0.0.1:3000 usuario@oracle` → <http://localhost:3000>. Para acceso remoto usa un proxy privado (Tailscale / Cloudflare Access); la app nunca se publica directamente.
 
-> For CPU-only, remove the `deploy.resources` section from `docker-compose.yml`.
+Documentación completa: [docs/ciudadan/INSTALL.md](docs/ciudadan/INSTALL.md) · [CONTROL_CENTER.md](docs/ciudadan/CONTROL_CENTER.md) · [VISUAL_BEHAVIOR.md](docs/ciudadan/VISUAL_BEHAVIOR.md) · [REAL_INTEGRATION.md](docs/ciudadan/REAL_INTEGRATION.md) · [EXTERNAL_INTERFACE.md](docs/ciudadan/EXTERNAL_INTERFACE.md)
 
----
+## 🤖 Conectar Cline
 
-## 🔧 Configuration
+**Observación** (automática): apunta `CLINE_DATA_DIR` al directorio de datos de tus sesiones Cline (p. ej. `/workspace/.cline/data` con `--config`). La oficina las detecta por solo lectura: `sessions.db`, JSONs de sesión y mensajes. No necesita credenciales.
 
-### Change the LLM Model
+**Control** (opcional): las instrucciones solo funcionan con sesiones **gestionadas por hub de Cline** (las TUI existentes no están registradas en el hub y son de solo lectura por seguridad). Pasos del operador:
 
-Edit `packages/server/src/rooms/OfficeRoom.ts`:
+1. Configura el proveedor del hub con el procedimiento oficial (la app JAMÁS copia claves de los archivos internos de Cline). **Ojo**: el hub daemon lee su config de `~/.cline` del usuario que lo ejecuta; si tu terminal hereda el config dir del TUI, sé explícito:
+   ```bash
+   # verificar qué hay (sin mostrar claves):
+   cat ~/.cline/data/settings/providers.json | grep -o '"provider": "[a-z]*"'
+   # configurar el proveedor que usará el hub:
+   cline --config ~/.cline auth -p nvidia -k <TU-CLAVE> -m z-ai/glm-5.3
+   #   (o el proveedor gratuito integrado, sin claves:)
+   cline --config ~/.cline auth   # y elegir 'cline' + un modelo cline-free/*
+   ```
+2. En `.env`: `AGENTOFFICE_CONTROL_TOKEN=$(openssl rand -hex 16)`, `INSTRUCTION_DISPATCH_ENABLED="true"`, `HUB_PROVIDER_ID`/`HUB_MODEL_ID` = el proveedor/modelo que configuraste en el hub, `HUB_SESSION_TOOLS="false"`.
+3. Reinicia. Lanza sesiones desde la oficina (`POST /api/control/sessions` con el token) e envíales instrucciones tras aprobación explícita.
 
-```typescript
-inference: {
-    provider: 'ollama',
-    model: 'llama3.2:latest',  // ← Change to any Ollama model
-    systemPrompt: '...',
-},
-```
+**Verificado end-to-end** (2026-10-11, Cline v3.0.70, proveedor gratuito `cline-free/mimo-v2.6-flash` configurado por el operador): sesión interactiva gestionada por hub lanzada desde la oficina → instrucción inocua despachada por el pipeline autorizado → respuesta real del modelo ("Azul.") → segunda instrucción a la MISMA sesión → respuesta real ("4") → identidad persistente → estados del personaje (idle/working) reflejando la actividad → auditoría completa → cierre seguro. Semántica del hub verificada: las sesiones lanzadas con `interactive: true` **persisten entre turnos**; las one-shot mueren tras su primer turno.
 
-### Use OpenAI / Gaia / OpenRouter
+## 🧠 DSH (DeepSeek Harness)
 
-```typescript
-import { OpenAICompatibleAdapter } from '@agent-office/adapters';
+DSH es el orquestador previsto y **seguirá siendo la fuente de verdad de sus tareas**. Esta instancia no tiene DSH instalado; el adaptador queda como contrato tipado (`DshTaskProvider`: tareas, dependencias, propuestas, asignaciones, resultados, bloqueos) con todo marcado como no disponible — sin endpoints inventados. Al desplegar una instancia real, se implementa el contrato y se sustituye el proveedor local de propuestas sin tocar el motor.
 
-private adapter = new OpenAICompatibleAdapter(
-    'https://api.openai.com/v1',
-    'sk-your-key-here',
-    'gpt-4o-mini'
-);
-```
+## 🛡️ Seguridad
 
-### Add Agents Manually
+- Todo escucha en `127.0.0.1` por defecto; acceso remoto solo vía proxy privado.
+- Escrituras `/api/control` con credencial server-side obligatoria (`X-AgentOffice-Control-Token`); sin ella → 503, nunca se abre en silencio.
+- WebSocket opcionalmente autenticado (`OFFICE_WS_TOKEN`); validación de Origin en despliegues no-loopback.
+- Instrucciones: aprobación humana + token + idempotencia por requestId + rate limit + auditoría JSONL rotativa; solo sesiones reales registradas; sanitización de secretos en todo texto; sin endpoints de shell arbitrario; workspaces aislados por sesión; el botón de React nunca es la autorización.
 
-```typescript
-await setupCoreAgent('charlie', 'Charlie', 'Designer', 15, 15);
-```
+## 📋 Pruebas
 
-Or let existing agents hire them dynamically via LLM! 🤝
+119 pruebas automatizadas (`npm test`): contrato externo, observación Cline, controlador visual, política de ocupación, pipeline de instrucciones (idempotencia, rate-limit, estados honestos), tareas/sprints, launcher de sesiones hub, WS auth, rotación de auditoría, proveedor DSH real (11 tests con verificación criptográfica de cookie), DSH no disponible. Nota Windows: `config.test`/`ClineSessionSource` arrastran 1 fallo ambiental preexistente (separador de rutas POSIX) ajeno a este bloque.
 
----
+## 🔮 Roadmap (etapa 2)
 
-## 🍴 Fork It & Build Your Own
+- **Discord Activity `/esfericulos`**: el frontend es reutilizable — componentes React desacoplados, Phaser independiente del despliegue, endpoints configurables en build (`VITE_WS_URL`/`VITE_WS_PORT`), WebSocket compatible con proxy inverso, diseño adaptable a iframe (`Phaser.Scale.RESIZE`), sin dominios codificados. La autenticación Ciudadan (ROOT/socios) entrará como capa delante del REST sin tocar el motor visual.
+- **DSH real (Ciudadan Bloque 2) ✓**: `HttpDshTaskProvider` contra el protocolo v2 verificado del webserver de DSH (`DSH_SOURCE=http`) — goals como tareas, cookie firmada del almacén de credenciales del harness, ciclo completo propuesta/asignación/completado/reversión probado E2E el 2026-10-26 contra un DSH vivo.
+- Permisos de herramientas por sesión gestionada (sandbox) cuando se necesite ejecución real.
 
-AgentOffice is designed to be forked and customized. Here's how:
+## ⚠️ Limitaciones conocidas
 
-### Step 1: Fork & Clone
+- Las sesiones TUI existentes no pueden recibir instrucciones (limitación estructural del hub de Cline, documentada); la oficina las muestra como observadas.
+- `blocked` solo se muestra cuando Cline lo declara explícitamente.
+- En contenedores sin systemd, el supervisor recomendado es Docker (`restart: unless-stopped` + healthcheck); tmux no es fiable como supervisor (sus sesiones mueren con el relanzamiento del agente).
 
-```bash
-# Fork on GitHub, then:
-git clone https://github.com/YOUR_USERNAME/agent-office.git
-cd agent-office && npm install
-```
+## 📄 Créditos y licencia
 
-### Step 2: Customize Agents
+- **Proyecto original**: [AgentOffice](https://github.com/harishkotra/agent-office) de Harish Kotra — **licencia MIT** (ver [LICENSE](./LICENSE)).
+- Inspirado en [pixel-agents](https://github.com/pablodelucca/pixel-agents) de Pablo de Lucca.
+- Adaptación Ciudadan sobre este fork. Código bajo MIT.
 
-Edit `packages/server/src/rooms/OfficeRoom.ts` to change agent names, roles, personalities, and system prompts. The personality traits (openness, conscientiousness, extraversion, agreeableness, neuroticism) directly influence agent behavior.
-
-### Step 3: Add Custom Tools
-
-Create new tools in `packages/server/src/tools/ToolExecutor.ts`:
-
-```typescript
-case 'my_custom_tool':
-    return this.myCustomTool(params);
-```
-
-Then add the capability to the agent config.
-
-### Step 4: Change the Office Layout
-
-Modify `furnitureTargets` in `OfficeRoom.ts` or use the in-browser Layout Editor to place and save furniture.
-
----
-
-## 💡 Ideas: What Can You Build With This?
-
-| Use Case | Description |
-|----------|-------------|
-| 🎓 **AI Classroom** | Teacher agent assigns lessons, student agents learn and ask questions |
-| 🏥 **Virtual Hospital** | Doctor, nurse, and patient agents simulate a medical workflow |
-| 🏭 **Factory Simulation** | Agents manage assembly lines, quality control, and logistics |
-| 🎮 **Game NPC Engine** | Use AgentOffice as the brain for NPCs in your game |
-| 📊 **Business Simulation** | CEO, CTO, and team agents run a startup — watch strategy emerge |
-| 🧪 **Research Lab** | Agents read papers, discuss findings, and write collaborative reports |
-| 🤖 **AI Interview Simulator** | Interviewer and candidate agents practice technical interviews |
-| 🎭 **Social Experiment** | Study emergent behavior in AI agent groups with different personalities |
-| 📚 **Study Group** | Agents quiz each other, explain concepts, and track learning progress |
-| 🏗️ **DevOps Team** | Agents monitor services, create incident tickets, and coordinate fixes |
-
----
-
-## 📦 Package Overview
-
-| Package | Description |
-|---------|-------------|
-| `@agent-office/core` | Agent lifecycle (Perceive → Think → Act), Office grid, Task system, Memory with importance scoring |
-| `@agent-office/adapters` | InferenceAdapter interface, OllamaAdapter, OpenAICompatibleAdapter, PromptBuilder |
-| `@agent-office/server` | Colyseus room, game loop, ToolExecutor (code/search/notes), MemoryStore (SQLite + embeddings) |
-| `@agent-office/ui` | Phaser.js renderer, React overlay (Chat, TaskBoard, Inspector, SystemLog, LayoutEditor) |
-| `@agent-office/cli` | `create-agent-office` scaffold, `add-agent` commands |
-
----
-
-## 🧪 Testing
-
-```bash
-npm test                                    # All tests
-npm test --workspace=@agent-office/core     # Core only
-npm test --workspace=@agent-office/adapters # Adapters only
-```
-
----
-
-## 🗺️ Roadmap
-
-- [x] Multi-agent conversations
-- [x] UI task assignment
-- [x] Persistent memory (SQLite)
-- [x] Tool execution (code, search)
-- [x] Custom layout editor
-- [x] Agent Focus Mode
-- [x] Dynamic agent hiring
-- [x] Semantic memory search
-- [x] System Activity Log
-- [x] Emote Bubbles
-- [ ] Voice mode (TTS/STT)
-- [ ] GitHub PR integration
-- [ ] Slack/Discord bridge
-- [ ] Multiple office floors
-- [ ] Plugin system for custom behaviors
-- [ ] Mobile companion app
-
----
-
-## 📘 Changelog
-
-See release notes in [CHANGELOG.md](./CHANGELOG.md).
-
----
-
-## 🤝 Contributing
-
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/amazing`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing`)
-5. Open a Pull Request
-
----
-
-**Built with** Phaser.js · Colyseus · React · Ollama · SQLite · TypeScript
-
-**Star ⭐ this repo** if you think AI agents deserve their own office!
-
-💙 Shout out to @pablodelucca for building and inspiring this project with [https://github.com/pablodelucca/pixel-agents](https://github.com/pablodelucca/pixel-agents)

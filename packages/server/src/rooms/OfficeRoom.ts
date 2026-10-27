@@ -4,6 +4,11 @@ import { Agent, Office, OfficeConfig, ConversationMessage } from '@agent-office/
 import { OllamaAdapter } from '@agent-office/adapters';
 import { ToolExecutor } from '../tools/ToolExecutor';
 import { MemoryStore } from '../memory/MemoryStore';
+import { loadConfig, ServerConfig, OrchestrationMode } from '../config';
+import { ExternalBridge, OfficeGateway } from '../external/ExternalBridge';
+import { SeatAllocator } from '../external/SeatAllocator';
+import { MockExternalOrchestrator } from '../external/MockExternalOrchestrator';
+import { AgentVisualController } from '../integrations/visual/AgentVisualController';
 
 interface HighlightEvent {
     type: string;
@@ -30,9 +35,26 @@ export class OfficeRoom extends Room<OfficeState> {
     private demoTickCount = 0;
     private coreAgents: Map<string, Agent> = new Map();
     private thinkingLocks: Map<string, boolean> = new Map();
-    private ollamaAdapter = new OllamaAdapter('http://localhost:11434');
+    /**
+     * Orchestration mode.
+     *  - 'internal': original upstream behavior (Ollama think loop, tools,
+     *    autonomous hiring, fake conversations, embeddings...).
+     *  - 'external': the office is a visual shell driven exclusively by the
+     *    external interface (ExternalBridge/REST). No LLM, no tools, no
+     *    autonomous behavior of any kind.
+     */
+    private mode: OrchestrationMode = 'external';
+    private serverConfig: ServerConfig = loadConfig();
+    private ollamaAdapter?: OllamaAdapter;
+    private toolExecutor?: ToolExecutor;
+    private seatAllocator = new SeatAllocator();
+    private externalBridge?: ExternalBridge;
+    private demoOrchestrator?: MockExternalOrchestrator;
+    /** Block 3: visual controller for external agents (state→behavior). */
+    private visualController?: AgentVisualController;
+    /** Block 3: movement tick counter (drives ambient scheduling). */
+    private movementTick = 0;
     private hireCount = 0; // Counter for generating unique IDs
-    private toolExecutor = new ToolExecutor();
     private memoryStore = new MemoryStore();
     private sessionId = `session_${Date.now()}`;
     private currentScenario = 'Free Play';
@@ -64,12 +86,42 @@ export class OfficeRoom extends Room<OfficeState> {
         return OfficeRoom.activeRoom;
     }
 
+    /**
+     * Block 5 (FASE E): optional WebSocket authentication. When
+     * OFFICE_WS_TOKEN is configured, every Colyseus join must present
+     * it (join options { token }) — protects private office data over
+     * remote channels (Tailscale/Cloudflare proxy front-ends).
+     */
+    onAuth(client: Client, options: any): boolean {
+        if (!this.serverConfig.officeWsToken) return true; // localhost mode
+        const presented = String(options?.token || '');
+        if (presented === this.serverConfig.officeWsToken) return true;
+        console.log(`[OfficeRoom] WS auth REJECTED for ${client.sessionId} (token inválido).`);
+        return false;
+    }
+
+    /** External bridge accessor — null while running in internal mode. */
+    getExternalBridge(): ExternalBridge | null {
+        return this.externalBridge ?? null;
+    }
+
     async onCreate(options: any) {
         OfficeRoom.activeRoom = this;
         this.setState(new OfficeState());
 
-        // Initialize memory store
-        await this.memoryStore.initialize();
+        // Resolve orchestration mode (room option wins over env config).
+        const requested = options?.mode || this.serverConfig.mode;
+        this.mode = requested === 'internal' ? 'internal' : 'external';
+        // In external mode the room must survive clients disconnecting:
+        // external agents are registered independently of the UI.
+        if (this.mode === 'external') this.autoDispose = false;
+
+        // Initialize memory store. Embeddings call Ollama and are NOT needed
+        // to show the office — only enabled in internal mode.
+        await this.memoryStore.initialize(this.serverConfig.databasePath, {
+            ollamaUrl: this.serverConfig.ollamaUrl,
+            embeddingsEnabled: this.mode === 'internal'
+        });
 
         const config: OfficeConfig = {
             name: options.name || 'Startup HQ',
@@ -80,6 +132,34 @@ export class OfficeRoom extends Room<OfficeState> {
             zones: []
         };
         this.office = new Office(config);
+
+        if (this.mode === 'external') {
+            // ─── EXTERNAL MODE: visual shell, no autonomous AI ───
+            // No OllamaAdapter, no ToolExecutor, no think loop, no fake
+            // agents. Agents arrive through the external interface only.
+            this.externalBridge = new ExternalBridge(this.buildGateway());
+            // Block 3: visual controller — external states drive where the
+            // agent walks and which animation/emote it shows.
+            this.visualController = new AgentVisualController({ seats: this.seatAllocator });
+            if (this.serverConfig.externalDemoMode) {
+                this.demoOrchestrator = new MockExternalOrchestrator(this.externalBridge);
+                this.demoOrchestrator.start();
+            }
+            const savedLayout = await this.memoryStore.loadLayout('default');
+            this.currentLayout = Array.isArray(savedLayout) ? savedLayout : [];
+            console.log(
+                `[OfficeRoom] EXTERNAL mode active. Seats: ${this.seatAllocator.capacity}. ` +
+                `Demo data: ${this.serverConfig.externalDemoMode ? 'ON [DEMO]' : 'off'}. ` +
+                'Waiting for agents via /api/external.'
+            );
+            this.setupMessageHandlers();
+            this.setSimulationInterval((delta) => this.update(delta), 100);
+            return;
+        }
+
+        // ─── INTERNAL MODE: original upstream behavior (compatibility) ───
+        console.log(`[OfficeRoom] INTERNAL mode active (Ollama: ${this.serverConfig.ollamaUrl}).`);
+        this.getOllamaAdapter();
 
         // Setup Core Agents with AI capabilities
         const setupCoreAgent = async (id: string, name: string, role: string, x: number, y: number) => {
@@ -110,7 +190,8 @@ export class OfficeRoom extends Room<OfficeState> {
                 memory: { shortTermLimit: 50 }
             });
 
-            coreAgent.setInferenceAdapter(this.ollamaAdapter);
+            const adapter = this.getOllamaAdapter();
+            if (adapter) coreAgent.setInferenceAdapter(adapter);
             await coreAgent.initialize();
 
             // Load persistent memories from previous sessions
@@ -130,8 +211,14 @@ export class OfficeRoom extends Room<OfficeState> {
         const savedLayout = await this.memoryStore.loadLayout('default');
         this.currentLayout = Array.isArray(savedLayout) ? savedLayout : [];
 
-        // ─── MESSAGE HANDLERS ───
+        this.setupMessageHandlers();
 
+        // Start Simulation Loop
+        this.setSimulationInterval((delta) => this.update(delta), 100);
+    }
+
+    /** Message handlers shared by both modes (guarded where needed). */
+    private setupMessageHandlers(): void {
         this.onMessage('command', (client, message) => {
             console.log(`Command from ${client.sessionId}:`, message);
         });
@@ -142,20 +229,64 @@ export class OfficeRoom extends Room<OfficeState> {
         });
 
         this.onMessage('start-scenario', (client, message) => {
+            if (this.mode === 'external') {
+                // Fictional narrative events are disabled in external mode.
+                this.broadcast('chat', {
+                    sender: 'System',
+                    text: '⚠️ Scenarios are only available in internal mode (AGENT_OFFICE_MODE=internal).'
+                });
+                return;
+            }
             const scenarioName = String(message?.scenario || 'Free Play');
             this.currentScenario = scenarioName;
             this.applyScenarioKickoff(scenarioName);
         });
 
         this.onMessage('trigger-chaos', (client, message) => {
+            if (this.mode === 'external') {
+                this.broadcast('chat', {
+                    sender: 'System',
+                    text: '⚠️ Chaos events are only available in internal mode.'
+                });
+                return;
+            }
             const eventName = String(message?.event || 'minor_outage');
             this.applyChaosEvent(eventName);
         });
 
-        // UI-driven task assignment
+        // UI-driven task assignment (works in both modes).
         this.onMessage('assign-task', (client, message) => {
             const { title, agentId } = message;
             console.log(`[TaskBoard] Assigning "${title}" to ${agentId || 'auto'}`);
+
+            if (this.mode === 'external') {
+                // External agents live only in office state (no core Agent).
+                const explicit = agentId && this.state.agents.has(agentId)
+                    ? agentId
+                    : (Array.from(this.state.agents.keys())[0] ?? null);
+                const agentState = explicit ? this.state.agents.get(explicit) : undefined;
+                if (!agentState) {
+                    this.broadcast('chat', {
+                        sender: 'System',
+                        text: '📋 No external agents registered yet.'
+                    });
+                    return;
+                }
+                agentState.currentTask = title;
+                agentState.action = 'work';
+                this.memoryStore.createTask(title, explicit!);
+                this.broadcast('chat', {
+                    sender: 'System',
+                    text: `📋 Task "${title}" assigned to ${agentState.name}`
+                });
+                this.broadcast('task-update', {
+                    agentId: explicit,
+                    agentName: agentState.name,
+                    task: title,
+                    status: 'in_progress'
+                });
+                return;
+            }
 
             // Pick agent: explicit or auto-assign to least busy
             const targetId = agentId || this.autoAssignAgent();
@@ -184,7 +315,7 @@ export class OfficeRoom extends Room<OfficeState> {
             }
         });
 
-        // Save office layout from editor
+        // Save office layout from editor (works in both modes).
         this.onMessage('save-layout', async (client, message) => {
             const layoutName = message.name || 'default';
             const layout = Array.isArray(message.layout) ? message.layout : [];
@@ -193,9 +324,46 @@ export class OfficeRoom extends Room<OfficeState> {
             this.broadcast('layout-sync', { name: layoutName, layout: this.currentLayout });
             this.broadcast('chat', { sender: 'System', text: '✅ Office layout saved!' });
         });
+    }
 
-        // Start Simulation Loop
-        this.setSimulationInterval((delta) => this.update(delta), 100);
+    /** Lazily creates the Ollama adapter (INTERNAL mode only). */
+    private getOllamaAdapter(): OllamaAdapter | null {
+        if (this.mode === 'external') return null;
+        if (!this.ollamaAdapter) {
+            this.ollamaAdapter = new OllamaAdapter(this.serverConfig.ollamaUrl);
+        }
+        return this.ollamaAdapter;
+    }
+
+    /** Lazily creates the tool executor (INTERNAL mode only). */
+    private getToolExecutor(): ToolExecutor | null {
+        if (this.mode === 'external') return null;
+        if (!this.toolExecutor) {
+            this.toolExecutor = new ToolExecutor();
+        }
+        return this.toolExecutor;
+    }
+
+    /** Gateway adapter exposing the room to ExternalBridge. */
+    private buildGateway(): OfficeGateway {
+        return {
+            mode: this.mode,
+            seats: this.seatAllocator,
+            getOfficeTime: () => this.state.officeTime,
+            hasAgent: (id) => this.state.agents.has(id),
+            getAgentState: (id) => this.state.agents.get(id),
+            createAgent: (id, name, opts) => this.state.createAgent(id, name, opts),
+            removeAgent: (id) => {
+                this.state.removeAgent(id);
+                // Forget visual bookkeeping (ambient breaks, etc.).
+                this.visualController?.forget(id);
+            },
+            broadcastChat: (sender, text) => this.broadcast('chat', { sender, text }),
+            broadcastTaskUpdate: (payload) => this.broadcast('task-update', payload),
+            emitHighlight: (type, title, body, agentId) => this.emitHighlight(type, title, body, agentId),
+            persistTask: (title, agentId) => { void this.memoryStore.createTask(title, agentId); },
+            listAgentIds: () => Array.from(this.state.agents.keys())
+        };
     }
 
     private autoAssignAgent(): string {
@@ -213,8 +381,11 @@ export class OfficeRoom extends Room<OfficeState> {
 
         this.state.officeTime = new Date().toISOString();
 
-        // ─── AGENT THINK CYCLE ───
+        // ─── AGENT THINK CYCLE (INTERNAL mode only) ───
+        // In external mode there is NO autonomous reasoning: coreAgents
+        // stays empty, no OllamaAdapter is created and this loop is inert.
         this.coreAgents.forEach((coreAgent, id) => {
+            if (this.mode !== 'internal') return;
             if (!this.thinkingLocks.get(id)) {
                 this.thinkingLocks.set(id, true);
 
@@ -358,7 +529,8 @@ export class OfficeRoom extends Room<OfficeState> {
                                     memory: { shortTermLimit: 50 }
                                 });
 
-                                hireAgent.setInferenceAdapter(this.ollamaAdapter);
+                                const hireAdapter = this.getOllamaAdapter();
+                                if (hireAdapter) hireAgent.setInferenceAdapter(hireAdapter);
                                 await hireAgent.initialize();
                                 this.coreAgents.set(hireId, hireAgent);
                                 this.thinkingLocks.set(hireId, false);
@@ -391,7 +563,11 @@ export class OfficeRoom extends Room<OfficeState> {
                                 });
                             }
                         } else {
-                            const result = await this.toolExecutor.execute(
+                            // Tool execution — INTERNAL mode only. Never
+                            // reachable in external mode (no think loop).
+                            const toolExecutor = this.getToolExecutor();
+                            if (!toolExecutor) return;
+                            const result = await toolExecutor.execute(
                                 decision.toolCall.name,
                                 decision.toolCall.params
                             );
@@ -442,13 +618,30 @@ export class OfficeRoom extends Room<OfficeState> {
         this.demoTickCount++;
         if (this.demoTickCount >= 5) {
             this.demoTickCount = 0;
+            this.movementTick++;
             this.state.agents.forEach((agent, key) => {
-                // Default targets: agent's own desk chair
-                const deskKey = `${key}-desk`;
-                const target = this.furnitureTargets[deskKey] || { x: 5, y: 18 };
+                // Default targets: agent's own desk chair.
+                // Block 3: EXTERNAL agents (seated) are driven by the
+                // visual controller — state → behavior → destination.
+                // INTERNAL agents keep the original furnitureTargets
+                // lookup (unchanged upstream behavior).
+                const seat = this.seatAllocator.seatOf(key);
+                let target: { x: number; y: number };
+                if (seat && this.visualController) {
+                    const behavior = this.visualController.behaviorFor(
+                        key, String(agent.status || ''), this.movementTick
+                    );
+                    target = this.visualController.resolveTarget(key, behavior, seat.index);
+                } else {
+                    const deskKey = `${key}-desk`;
+                    target = this.furnitureTargets[deskKey] || { x: 5, y: 18 };
+                }
 
-                // If agent action is 'talk', move towards the other agent instead
-                if (agent.action === 'talk') {
+                // If agent action is 'talk', move towards the other agent
+                // instead — original behavior. Only for NON-seated agents:
+                // external agents are governed by the visual controller,
+                // so their movement never contradicts their real state.
+                if (agent.action === 'talk' && !seat) {
                     let closest: { x: number; y: number } | null = null;
                     let minDist = Infinity;
                     this.state.agents.forEach((other, otherKey) => {
@@ -474,8 +667,11 @@ export class OfficeRoom extends Room<OfficeState> {
                 else if (agent.y > target.y) agent.y -= 1;
                 clamp(agent);
 
-                // Keep viral telemetry alive for UI overlays and highlights.
-                this.updateAgentViralMetrics(key, agent.action);
+                // Viral telemetry jitter only in INTERNAL mode; in external
+                // mode the metrics are owned by the external interface.
+                if (this.mode === 'internal') {
+                    this.updateAgentViralMetrics(key, agent.action);
+                }
             });
         }
     }
@@ -670,6 +866,17 @@ export class OfficeRoom extends Room<OfficeState> {
     }
 
     public registerAudienceVote(eventName: string, voterId?: string) {
+        if (this.mode === 'external') {
+            // Fictional audience-driven chaos is disabled in external mode.
+            return {
+                accepted: false,
+                event: eventName,
+                voterId: voterId || null,
+                tally: 0,
+                triggered: false,
+                reason: 'Audience votes are only available in internal mode.'
+            };
+        }
         const normalized = String(eventName || 'server_outage');
         this.audienceVotes[normalized] = (this.audienceVotes[normalized] || 0) + 1;
         const totalVotes = Object.values(this.audienceVotes).reduce((sum, value) => sum + value, 0);
@@ -743,6 +950,20 @@ export class OfficeRoom extends Room<OfficeState> {
 
     onJoin(client: Client, options: any) {
         console.log(client.sessionId, "joined the office room!");
+        // Mode banner so the user immediately knows what they are looking at.
+        if (this.mode === 'external') {
+            client.send('chat', {
+                sender: '🔌 Office',
+                text: 'Modo EXTERNO: visualización de agentes externos (hasta 7 puestos). '
+                    + 'Sin LLM ni acciones autónomas. Registra agentes vía /api/external.'
+                    + (this.serverConfig.externalDemoMode ? ' [DEMO DATA ACTIVO]' : '')
+            });
+        } else {
+            client.send('chat', {
+                sender: '🏢 Office',
+                text: 'Modo INTERNO: orquestador original con Ollama activo.'
+            });
+        }
         // Send existing tasks to newly joined client
         this.memoryStore.getTasks().then(tasks => {
             client.send('tasks-sync', tasks);
@@ -758,7 +979,11 @@ export class OfficeRoom extends Room<OfficeState> {
     async onDispose() {
         console.log("room", this.roomId, "disposing... saving memories");
         OfficeRoom.activeRoom = null;
-        // Persist all agent memories on shutdown
+        // Stop demo simulation and free seats.
+        this.demoOrchestrator?.stop();
+        this.seatAllocator.reset();
+        // Persist all agent memories on shutdown (internal mode only has
+        // core agents; in external mode this loop is a no-op).
         for (const [id, agent] of this.coreAgents) {
             await this.memoryStore.saveMemories(id, agent.memories, this.sessionId);
         }

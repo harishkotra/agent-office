@@ -9,6 +9,11 @@ export function getColyseusRoom() {
     return activeRoom;
 }
 
+// Block 3 (FASE F): build-time injected configuration (vite `define`).
+// Empty strings mean "not configured" → iframe-safe location fallback.
+declare const __AGENT_OFFICE_WS_URL__: string;
+declare const __AGENT_OFFICE_WS_PORT__: string;
+
 function resolveWsEndpoint(): string {
     if (typeof window !== 'undefined') {
         const queryWs = new URLSearchParams(window.location.search).get('ws');
@@ -19,13 +24,16 @@ function resolveWsEndpoint(): string {
         const savedWs = window.localStorage.getItem('agent-office:ws-url');
         if (savedWs && savedWs.trim()) return savedWs.trim();
     }
-    const globalEndpoint = typeof window !== 'undefined'
-        ? (window as any).__AGENT_OFFICE_WS_URL as string | undefined
-        : undefined;
-    if (globalEndpoint && globalEndpoint.trim()) return globalEndpoint.trim();
+    // Deployment-provided endpoint (Discord Activity, embeds) wins over
+    // the location-derived default — never a hardcoded localhost.
+    const configured = typeof __AGENT_OFFICE_WS_URL__ !== 'undefined'
+        ? String(__AGENT_OFFICE_WS_URL__ || '').trim()
+        : '';
+    if (configured) return configured;
     if (typeof window !== 'undefined') {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return `${protocol}//${window.location.hostname}:3000`;
+        const port = String(__AGENT_OFFICE_WS_PORT__ || '').trim() || '3000';
+        return `${protocol}//${window.location.hostname}:${port}`;
     }
     return 'ws://localhost:3000';
 }
@@ -36,6 +44,8 @@ export class OfficeScene extends Phaser.Scene {
     private agentSprites: Map<string, Phaser.GameObjects.Container> = new Map();
     private statusText!: Phaser.GameObjects.Text;
     private followTarget: Phaser.GameObjects.Container | null = null;
+    /** Id of the agent the inspector panel is currently showing (null = none). */
+    private focusAgentId: string | null = null;
     private cinematicMode = true;
     private cinematicReleaseAt = 0;
     private customLayoutLayer?: Phaser.GameObjects.Container;
@@ -50,14 +60,14 @@ export class OfficeScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.spritesheet('char_0', '/assets/characters/char_0.png', {
-            frameWidth: 16,
-            frameHeight: 32
-        });
-        this.load.spritesheet('char_1', '/assets/characters/char_1.png', {
-            frameWidth: 16,
-            frameHeight: 32
-        });
+        // Load all available character sprite sheets (char_0..char_5).
+        // External agents get a distinct sprite per seat (seat 7 wraps to 0).
+        for (let i = 0; i < 6; i++) {
+            this.load.spritesheet(`char_${i}`, `/assets/characters/char_${i}.png`, {
+                frameWidth: 16,
+                frameHeight: 32
+            });
+        }
     }
 
     create() {
@@ -69,20 +79,16 @@ export class OfficeScene extends Phaser.Scene {
 
             let hasAnims = false;
 
-            // Create animations for character 0
-            if (this.textures.exists('char_0')) {
-                const anims = this.anims;
-                anims.create({ key: 'char_0-walk-down', frames: anims.generateFrameNumbers('char_0', { start: 0, end: 2 }), frameRate: 8, repeat: -1 });
-                anims.create({ key: 'char_0-walk-up', frames: anims.generateFrameNumbers('char_0', { start: 7, end: 9 }), frameRate: 8, repeat: -1 });
-                anims.create({ key: 'char_0-walk-right', frames: anims.generateFrameNumbers('char_0', { start: 14, end: 16 }), frameRate: 8, repeat: -1 });
-                hasAnims = true;
-            }
-            // Create animations for character 1
-            if (this.textures.exists('char_1')) {
-                const anims = this.anims;
-                anims.create({ key: 'char_1-walk-down', frames: anims.generateFrameNumbers('char_1', { start: 0, end: 2 }), frameRate: 8, repeat: -1 });
-                anims.create({ key: 'char_1-walk-up', frames: anims.generateFrameNumbers('char_1', { start: 7, end: 9 }), frameRate: 8, repeat: -1 });
-                anims.create({ key: 'char_1-walk-right', frames: anims.generateFrameNumbers('char_1', { start: 14, end: 16 }), frameRate: 8, repeat: -1 });
+            // Create walk animations for every loaded character sheet.
+            const anims = this.anims;
+            for (let i = 0; i < 6; i++) {
+                const key = `char_${i}`;
+                if (this.textures.exists(key)) {
+                    anims.create({ key: `${key}-walk-down`, frames: anims.generateFrameNumbers(key, { start: 0, end: 2 }), frameRate: 8, repeat: -1 });
+                    anims.create({ key: `${key}-walk-up`, frames: anims.generateFrameNumbers(key, { start: 7, end: 9 }), frameRate: 8, repeat: -1 });
+                    anims.create({ key: `${key}-walk-right`, frames: anims.generateFrameNumbers(key, { start: 14, end: 16 }), frameRate: 8, repeat: -1 });
+                    hasAnims = true;
+                }
             }
 
             console.log("Animations created: ", hasAnims);
@@ -282,6 +288,14 @@ export class OfficeScene extends Phaser.Scene {
             drawWorkstation(64, 240, '💻 Alice\'s Desk', true);
             drawWorkstation(64, 320, '💻 Bob\'s Desk', true);
             drawWorkstation(64, 400, '💻 Vacant', false);
+
+            // ─── Additional fixed seats (Ciudadan AgentOffice) ───
+            // Static workstations for seats 4..7. The office has EXACTLY
+            // seven seats; no dynamic expansion is supported.
+            drawWorkstation(224, 240, '💻 Puesto 4', false);
+            drawWorkstation(224, 320, '💻 Puesto 5', false);
+            drawWorkstation(384, 240, '💻 Puesto 6', false);
+            drawWorkstation(496, 240, '💻 Puesto 7', false);
 
             // ═══════════════════════════════════════════
             //  COFFEE & PANTRY AREA
@@ -501,13 +515,48 @@ export class OfficeScene extends Phaser.Scene {
         }
     }
 
+    /**
+     * Publishes focused agent data (id, name, role, status, task, errors...)
+     * for the React AgentInspector panel through the event bus.
+     */
+    private emitInspectorPayload(agent: any, sessionId: string) {
+        eventBus.dispatchEvent(new CustomEvent('agent-focus', {
+            detail: {
+                id: sessionId,
+                name: agent.name,
+                role: agent.role || '',
+                status: agent.status || '',
+                currentTask: agent.currentTask || '',
+                thought: agent.thought || '',
+                session: agent.session || '',
+                error: agent.error || '',
+                // Block 3 (FASE E): real evidence fields.
+                activeFile: agent.activeFile || '',
+                workspace: agent.workspace || '',
+                gitBranch: agent.gitBranch || '',
+                sessionType: agent.sessionType || '',
+                lastTool: agent.lastTool || '',
+                updatedAt: Number(agent.updatedAt || 0)
+            }
+        }));
+    }
+
     async connectToServer() {
         try {
             console.log("Connecting to Colyseus...");
             const wsEndpoint = resolveWsEndpoint();
             this.statusText.setText(`Colyseus Sync: Connecting to ${wsEndpoint}...`).setColor('#ffffaa');
             const client = new Colyseus.Client(wsEndpoint);
-            this.room = await client.joinOrCreate('office');
+            // Block 5 (FASE E): optional WS token for remote deployments
+            // (query param ?wstoken= — kept in sessionStorage).
+            const joinOptions: Record<string, unknown> = {};
+            try {
+                const urlToken = new URLSearchParams(window.location.search).get('wstoken');
+                if (urlToken) sessionStorage.setItem('agent-office:ws-token', urlToken);
+                const savedToken = sessionStorage.getItem('agent-office:ws-token');
+                if (savedToken) joinOptions.token = savedToken;
+            } catch { /* sessionStorage unavailable — proceed without token */ }
+            this.room = await client.joinOrCreate('office', joinOptions);
 
             console.log("Room joined successfully!", this.room.sessionId);
             this.statusText.setText('Colyseus Sync: Connected (Waiting for state...)').setColor('#aaffaa');
@@ -546,8 +595,12 @@ export class OfficeScene extends Phaser.Scene {
                     const container = this.add.container(agent.x * 16, agent.y * 16);
 
                     let sprite;
-                    let charKey = 'char_0';
-                    if (agent.name.includes('Bob')) charKey = 'char_1';
+                    // Server-assigned sprite index (external mode gives each
+                    // seat a distinct character); internal mode keeps the
+                    // original name-based assignment (Bob → char_1).
+                    const spriteIdx = Number(agent.spriteIndex ?? 0);
+                    const safeIdx = Number.isInteger(spriteIdx) && spriteIdx >= 0 && spriteIdx < 6 ? spriteIdx : 0;
+                    let charKey = `char_${safeIdx}`;
 
                     if (this.textures.exists(charKey)) {
                         sprite = this.add.sprite(0, -8, charKey, 0);
@@ -594,6 +647,7 @@ export class OfficeScene extends Phaser.Scene {
                         if (this.followTarget === container) {
                             // Unfollow on second click
                             this.followTarget = null;
+                            this.focusAgentId = null;
                             focusRing.setVisible(false);
                             eventBus.dispatchEvent(new CustomEvent('agent-focus', { detail: null }));
                         } else {
@@ -603,14 +657,19 @@ export class OfficeScene extends Phaser.Scene {
                                 prevRing?.setVisible(false);
                             }
                             this.followTarget = container;
+                            this.focusAgentId = sessionId;
                             focusRing.setVisible(true);
-                            eventBus.dispatchEvent(new CustomEvent('agent-focus', { detail: { name: agent.name, id: sessionId } }));
+                            this.emitInspectorPayload(agent, sessionId);
                         }
                     });
 
                     let prevX = agent.x;
                     let prevY = agent.y;
                     let lastAction = '';
+                    // Block 3: last status shown (guards the status emote
+                    // against restarts on every 5s poll).
+                    let lastStatusEmote = '';
+                    let lastThought = '';
 
                     agent.onChange(() => {
                         this.tweens.add({
@@ -635,32 +694,53 @@ export class OfficeScene extends Phaser.Scene {
                             else { s.stop(); }
                         }
 
-                        // --- EMOTE BUBBLES based on action ---
-                        const emoteMap: Record<string, string> = {
+                        // --- EMOTE BUBBLES ---
+                        // Block 3: STATUS-based emotes take precedence for
+                        // real Cline states (they distinguish working /
+                        // editing / reading / testing / waiting / blocked
+                        // even when the underlying sprite action is the
+                        // same). Falls back to the original action map
+                        // (demo/internal agents).
+                        const statusEmoteMap: Record<string, string> = {
+                            'working': '💻', 'editing': '✏️', 'testing': '🧪',
+                            'reading': '📖', 'waiting': '⏳', 'waiting_input': '⏳',
+                            'blocked': '🚨', 'completed': '✅', 'offline': '💤',
+                            'idle': '😌', 'running': '💻', 'thinking': '💡',
+                            'acting': '💻', 'error': '🚨'
+                        };
+                        const actionEmoteMap: Record<string, string> = {
                             'work': '💻', 'talk': '💬', 'idle': '😌',
                             'use_tool': '🔧', 'move': '🚶', 'think': '💡'
                         };
-                        const emote = emoteMap[agent.action] || '';
-                        if (emote && agent.action !== lastAction) {
+                        const status = String(agent.status || '');
+                        const statusEmote = statusEmoteMap[status] || '';
+                        // Ambient coffee break: idle agent walking (Block 3).
+                        const ambientBreak = status === 'idle' && agent.action === 'move';
+                        const emote = ambientBreak ? '☕'
+                            : (statusEmote || actionEmoteMap[agent.action] || '');
+                        const emoteKey = ambientBreak ? '☕' : (statusEmote || agent.action);
+                        if (emote && emoteKey !== lastStatusEmote) {
                             emoteBubble.setText(emote);
                             emoteBubble.setVisible(true);
                             // Auto-hide after 3s
                             this.time.delayedCall(3000, () => emoteBubble.setVisible(false));
+                            lastStatusEmote = emoteKey;
                         }
 
-                        // Thought bubble
-                        if (agent.thought && agent.thought !== '') {
+                        // Thought bubble — only when it actually CHANGED,
+                        // so periodic polling updates don't pin it open.
+                        if (agent.thought && agent.thought !== lastThought) {
                             thoughtBubble.setText(agent.thought);
                             thoughtBubble.setVisible(true);
                             this.time.delayedCall(6000, () => thoughtBubble.setVisible(false));
                         }
 
-                        // --- SYSTEM LOG EVENT ---
-                        if (agent.action !== lastAction || agent.thought !== '') {
+                        // --- SYSTEM LOG EVENT --- (only on real changes)
+                        if (agent.action !== lastAction || (agent.thought && agent.thought !== lastThought)) {
                             eventBus.dispatchEvent(new CustomEvent('activity-log', {
                                 detail: {
                                     agent: agent.name,
-                                    action: agent.action,
+                                    action: statusEmote ? `${status}` : agent.action,
                                     thought: agent.thought,
                                     time: new Date().toLocaleTimeString()
                                 }
@@ -681,6 +761,12 @@ export class OfficeScene extends Phaser.Scene {
                         lastAction = agent.action;
                         prevX = agent.x;
                         prevY = agent.y;
+                        lastThought = agent.thought || '';
+
+                        // Keep the AgentInspector panel in sync while focused.
+                        if (this.focusAgentId === sessionId) {
+                            this.emitInspectorPayload(agent, sessionId);
+                        }
                     });
                 });
 

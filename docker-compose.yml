@@ -1,42 +1,32 @@
-version: '3.8'
+# Ciudadan AgentOffice — reproducible single-service deployment.
+# One office per developer; up to seven real Cline agents.
+# No Ollama, no Redis. Restart policy = the process supervisor.
 services:
-  server:
-    image: agent-office/server:latest
-    build:
-      context: .
-      dockerfile: packages/server/Dockerfile
-    ports:
-      - "3000:3000"
+  agentoffice:
+    build: .
+    image: ciudadan/agentoffice:latest
+    container_name: agentoffice
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=sqlite:/data/office.db
-      - REDIS_URL=redis://redis:6379
-    volumes:
-      - ./data:/data
-  
-  client:
-    image: agent-office/ui:latest
-    build:
-      context: .
-      dockerfile: packages/ui/Dockerfile
+      # Local-only by default; use a private proxy (Tailscale/CF
+      # Access) for remote access — never expose directly.
+      HOST: "127.0.0.1"
+      PORT: "3000"
+      # Read-only observation of the host's Cline data (mounted below).
+      CLINE_DATA_DIR: "/host-cline-data"
+      # Hub control requires the host's Cline SDK + hub record; leave
+      # dispatch disabled in containers (observation-only) unless you
+      # also mount the SDK path and hub record read-only.
+      INSTRUCTION_DISPATCH_ENABLED: "false"
     ports:
-      - "80:80"
-    environment:
-      - API_URL=http://server:3000
-  
-  redis:
-    image: redis:alpine
-  
-  ollama:
-    image: ollama/ollama
+      - "127.0.0.1:${PORT:-3000}:3000"
     volumes:
-      - ollama:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
+      # Persistence: office DB, task proposals, audit, hub workspaces.
+      - office-data:/app/packages/server/data
+      # Read-only view of the developer's Cline data (observation).
+      - ${CLINE_DATA_DIR:-/workspace/.cline/data}:/host-cline-data:ro
 volumes:
-  ollama:
+  office-data:
+
